@@ -64,12 +64,25 @@ def _slug_from_href(href: str | None) -> str | None:
 
 
 def _find_results_table(soup: BeautifulSoup):
-    """The results table is the one whose header row mentions 'Run Date'."""
+    """Pick the results table.
+
+    A profile page can contain several tables whose headers mention 'Run Date'
+    (e.g. a 10-row 'Most Recent parkruns' table alongside the full 'All Results'
+    table). We want the full one, so among all candidates we take the table with
+    the most data rows.
+    """
+    best = None
+    best_headers: list[str] = []
+    best_rows = -1
     for table in soup.find_all("table"):
-        headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
-        if any("run date" in h for h in headers):
-            return table, headers
-    return None, []
+        headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
+        if not any("run date" in h for h in headers):
+            continue
+        body = table.find("tbody") or table
+        n_rows = len(body.find_all("tr"))
+        if n_rows > best_rows:
+            best, best_headers, best_rows = table, headers, n_rows
+    return best, best_headers
 
 
 def _column_index(headers: list[str], *needles: str) -> int | None:

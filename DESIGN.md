@@ -87,7 +87,7 @@ accordingly:
 | Data | Source | Notes |
 |------|--------|-------|
 | **All events** (name, country, lat/lon, status) | `https://images.parkrun.com/events.json` | Public, single JSON file, ~2500 events worldwide incl. Vilnius. Refresh weekly. This is your geo catalogue. |
-| **Athlete run history** | `https://www.parkrun.<tld>/results/athleteresultshistory/?athleteNumber=<id>` | HTML; parse the results table (event name, date, run #, time, age grade). Behind bot protection — needs realistic headers + polite rate limiting. |
+| **Athlete run history** | `https://www.parkrun.<tld>/parkrunner/<id>/all/` | HTML; parse the "All Results" table (event, date, run #, pos, time, age grade). Works from any country domain. ⚠️ The older `/results/athleteresultshistory/?athleteNumber=<id>` endpoint now returns only a 10-row summary — don't use it. Needs realistic headers + polite rate limiting. |
 | **Geocoding** a place name ("Vilnius") | Nominatim/OpenStreetMap or a geocoding API | Only needed for the free-text travel query; events.json already has coordinates. |
 
 Design rules for the data layer:

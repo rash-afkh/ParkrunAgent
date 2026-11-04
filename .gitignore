@@ -33,6 +33,7 @@ data/*.db
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+local_files/
 
 # Editors / OS
 .idea/

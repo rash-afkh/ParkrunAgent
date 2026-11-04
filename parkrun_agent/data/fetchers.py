@@ -16,7 +16,11 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 ParkrunAgent/0.1 (personal use)"
 )
 EVENTS_JSON_URL = "https://images.parkrun.com/events.json"
-ATHLETE_HISTORY_URL = "https://www.parkrun.org.uk/results/athleteresultshistory/"
+# The full-history page. Note: the older /results/athleteresultshistory/ endpoint
+# now returns only a 10-row summary; /parkrunner/<id>/all/ returns every result
+# and works from any country domain regardless of the athlete's home country.
+PARKRUN_DEFAULT_DOMAIN = "www.parkrun.org.uk"
+ATHLETE_HISTORY_URL_TEMPLATE = "https://{domain}/parkrunner/{athlete_number}/all/"
 
 DEFAULT_TIMEOUT = 20
 
@@ -54,7 +58,8 @@ def fetch_events_json(etag: str | None = None) -> tuple[dict | None, str | None,
     return resp.json(), resp.headers.get("ETag"), False
 
 
-def fetch_athlete_history_html(athlete_number: int) -> str:
-    resp = _get(ATHLETE_HISTORY_URL, params={"athleteNumber": athlete_number})
+def fetch_athlete_history_html(athlete_number: int, domain: str = PARKRUN_DEFAULT_DOMAIN) -> str:
+    url = ATHLETE_HISTORY_URL_TEMPLATE.format(domain=domain, athlete_number=athlete_number)
+    resp = _get(url)
     resp.raise_for_status()
     return resp.text

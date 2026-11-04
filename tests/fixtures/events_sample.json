@@ -1,0 +1,37 @@
+{
+  "countries": {
+    "97": { "url": "www.parkrun.org.uk", "bounds": [-8.65, 49.84, 1.77, 60.86] },
+    "54": { "url": "www.parkrun.lt", "bounds": [20.94, 53.89, 26.83, 56.45] }
+  },
+  "events": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "id": 1,
+        "type": "Feature",
+        "geometry": { "type": "Point", "coordinates": [-0.335791, 51.410992] },
+        "properties": {
+          "eventname": "bushy",
+          "EventLongName": "Bushy parkrun",
+          "EventShortName": "Bushy Park",
+          "countrycode": 97,
+          "seriesid": 1,
+          "EventLocation": "Bushy Park, Teddington"
+        }
+      },
+      {
+        "id": 2000,
+        "type": "Feature",
+        "geometry": { "type": "Point", "coordinates": [25.245432, 54.682498] },
+        "properties": {
+          "eventname": "vingis",
+          "EventLongName": "parkrun Vingis",
+          "EventShortName": "Vingis",
+          "countrycode": 54,
+          "seriesid": 1,
+          "EventLocation": "Vingis Park, Vilnius"
+        }
+      }
+    ]
+  }
+}

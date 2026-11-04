@@ -172,6 +172,21 @@ def cmd_recommend(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ask(args: argparse.Namespace) -> int:
+    init_db()
+    from parkrun_agent.agent.agent import ask
+
+    try:
+        answer = ask(args.config, args.question, model=args.model)
+    except Exception as exc:  # noqa: BLE001 - surface a friendly hint
+        print(f"Agent error: {exc}", file=sys.stderr)
+        if "api" in str(exc).lower() or "auth" in str(exc).lower() or "key" in str(exc).lower():
+            print("Hint: set ANTHROPIC_API_KEY (the agent needs Claude access).", file=sys.stderr)
+        return 1
+    print(answer)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="parkrun-agent", description="Find your next parkrun.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -221,6 +236,12 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--local", type=float, default=None, help="Override local radius (km).")
     rec.add_argument("--stretch", type=float, default=None, help="Override stretch radius (km).")
     rec.set_defaults(func=cmd_recommend)
+
+    ask = sub.add_parser("ask", help="Ask the agent a free-text question (needs ANTHROPIC_API_KEY).")
+    ask.add_argument("question", help='e.g. "I\'m travelling to Vilnius next week — where should I run?"')
+    ask.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+    ask.add_argument("--model", default=None, help="Override the LLM model id.")
+    ask.set_defaults(func=cmd_ask)
 
     return parser
 

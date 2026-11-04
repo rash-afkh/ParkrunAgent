@@ -16,6 +16,7 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36 ParkrunAgent/0.1 (personal use)"
 )
 EVENTS_JSON_URL = "https://images.parkrun.com/events.json"
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 # The full-history page. Note: the older /results/athleteresultshistory/ endpoint
 # now returns only a 10-row summary; /parkrunner/<id>/all/ returns every result
 # and works from any country domain regardless of the athlete's home country.
@@ -63,3 +64,15 @@ def fetch_athlete_history_html(athlete_number: int, domain: str = PARKRUN_DEFAUL
     resp = _get(url)
     resp.raise_for_status()
     return resp.text
+
+
+def fetch_geocode(query: str) -> dict | None:
+    """Geocode a place name via OpenStreetMap Nominatim. Returns the top hit as
+    {lat, lon, display_name}, or None. Free, no API key; low-volume personal use."""
+    resp = _get(NOMINATIM_URL, params={"q": query, "format": "json", "limit": 1})
+    resp.raise_for_status()
+    data = resp.json()
+    if not data:
+        return None
+    top = data[0]
+    return {"lat": float(top["lat"]), "lon": float(top["lon"]), "display_name": top.get("display_name")}

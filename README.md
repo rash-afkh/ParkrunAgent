@@ -42,10 +42,27 @@ parkrun-agent challenges show        # your progress per challenge
 # Where should I run next? (local / stretch / destination tiers from home)
 parkrun-agent recommend
 
-# "I'm travelling to <place> — which parkrun there?" (manual coords for now;
-# free-text place geocoding arrives with the LangChain agent milestone)
+# "I'm travelling to <place> — which parkrun there?" (manual coords)
 parkrun-agent recommend --lat 54.6872 --lon 25.2797 --stretch 150
+
+# Natural-language agent (needs an Anthropic API key — see below)
+export ANTHROPIC_API_KEY=sk-ant-...
+parkrun-agent ask "I'm travelling to Vilnius next week — where should I run?"
+parkrun-agent ask "How am I doing on my challenges?"
 ```
+
+## The agent (LangChain / LangGraph)
+
+Milestone 4 (DESIGN.md §7) wraps the deterministic core in LangChain **tools**
+(`profile_summary`, `challenge_progress`, `recommend_from_home`,
+`recommend_near`) and a **LangGraph ReAct agent** that calls them. A **geocoder**
+(OpenStreetMap Nominatim, cached) turns free-text places like "Vilnius" into
+coordinates, so travel questions work from plain English. The LLM only picks
+tools and writes prose — all facts come from the deterministic core.
+
+Requires Anthropic credentials (`ANTHROPIC_API_KEY`). The model defaults to
+`claude-opus-5-5`; override with `PARKRUN_LLM_MODEL` (e.g.
+`claude-haiku-5-5` is far cheaper for experimenting) or `--model`.
 
 ## Recommendation engine
 

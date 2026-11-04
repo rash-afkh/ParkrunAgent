@@ -17,9 +17,12 @@ preferences:
     alphabeteer: 1.5
 
 challenges:
-  # Built-in keys: alphabeteer, pirates, compass, wilson. Omit `enabled` for all.
-  # (wilson needs the events catalogue — run `events refresh` first.)
-  enabled: [alphabeteer, pirates, compass, wilson]
+  # Built-in keys: alphabeteer, pirates, compass, wilson, floating_wilson.
+  # Region-completion keys: australia, au_wa, au_nsw, au_vic, au_qld, au_sa,
+  #   au_tas, au_act, au_nt (run every event in that region).
+  # Omit `enabled` to use the default set (built-ins + both Wilson indexes).
+  # (Catalogue-backed challenges need `events refresh` first.)
+  enabled: [alphabeteer, pirates, compass, wilson, floating_wilson]
 
   # Add your own without touching code:
   custom:

@@ -14,14 +14,17 @@ from pydantic import BaseModel, Field
 
 from parkrun_agent.core.challenges.base import Challenge
 from parkrun_agent.core.challenges.builtins import BUILTIN_BUILDERS
+from parkrun_agent.core.challenges.regions import REGION_KEYS, build_region_challenges
 from parkrun_agent.core.challenges.registry import build_challenge_from_config
-from parkrun_agent.core.challenges.wilson import wilson_from_events
+from parkrun_agent.core.challenges.wilson import floating_wilson_from_events, wilson_from_events
 from parkrun_agent.core.geo import GeoPoint
 from parkrun_agent.data.events_catalogue import EventsCatalogue
 
-# Wilson is handled specially: unlike the zero-arg built-ins it needs the
-# id-ordered event list from the catalogue.
-WILSON_KEY = "wilson"
+# Challenges that need the catalogue's event list (not zero-arg built-ins).
+CATALOGUE_BUILDERS = {
+    "wilson": wilson_from_events,
+    "floating_wilson": floating_wilson_from_events,
+}
 
 DEFAULT_CONFIG_PATH = "config/preferences.yaml"
 
@@ -81,22 +84,32 @@ def resolve_home(home: HomeConfig, catalogue: EventsCatalogue | None = None) -> 
 
 
 def build_challenges(config: AppConfig, catalogue: EventsCatalogue | None = None) -> list[Challenge]:
-    """Instantiate enabled challenges (default: all) plus any custom ones.
+    """Instantiate enabled challenges (default: built-ins + both Wilson indexes)
+    plus any custom ones. Catalogue-backed challenges (Wilson, regions) fetch the
+    event list lazily if a catalogue isn't supplied."""
+    enabled = config.enabled_challenges or [*BUILTIN_BUILDERS, "wilson", "floating_wilson"]
+    known = {*BUILTIN_BUILDERS, *CATALOGUE_BUILDERS, *REGION_KEYS}
+    region_cache: dict[str, Challenge] | None = None
 
-    Wilson needs the events catalogue; it is fetched lazily if not supplied.
-    """
-    enabled = config.enabled_challenges or [*BUILTIN_BUILDERS, WILSON_KEY]
-    known = {*BUILTIN_BUILDERS, WILSON_KEY}
+    def events() -> list:
+        nonlocal catalogue
+        catalogue = catalogue or EventsCatalogue()
+        evs = catalogue.all_events()
+        if not evs:
+            raise ValueError(
+                f"Challenge {key!r} needs the events catalogue — "
+                "run 'parkrun-agent events refresh' first."
+            )
+        return evs
+
     challenges: list[Challenge] = []
     for key in enabled:
-        if key == WILSON_KEY:
-            catalogue = catalogue or EventsCatalogue()
-            events = catalogue.all_events()
-            if not events:
-                raise ValueError(
-                    "Wilson Index needs the events catalogue — run 'parkrun-agent events refresh' first."
-                )
-            challenges.append(wilson_from_events(events))
+        if key in CATALOGUE_BUILDERS:
+            challenges.append(CATALOGUE_BUILDERS[key](events()))
+        elif key in REGION_KEYS:
+            if region_cache is None:
+                region_cache = build_region_challenges(events())
+            challenges.append(region_cache[key])
         elif key in BUILTIN_BUILDERS:
             challenges.append(BUILTIN_BUILDERS[key]())
         else:

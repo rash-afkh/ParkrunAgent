@@ -71,6 +71,25 @@ def cmd_athlete_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_athlete_describe(args: argparse.Namespace) -> int:
+    init_db()
+    from parkrun_agent.describe import athlete_summary
+
+    athlete_id = args.id
+    if athlete_id is None:
+        athlete_id = load_config(args.config).athlete_id
+    if athlete_id is None:
+        print("No athlete id (pass --id or set athlete_id in config).", file=sys.stderr)
+        return 1
+    catalogue = EventsCatalogue()
+    if not catalogue.all_events():
+        print("Catalogue empty — run 'parkrun-agent events refresh' first.", file=sys.stderr)
+        return 1
+    athlete = AthleteRepository().get(athlete_id)
+    print(athlete_summary(athlete, catalogue))
+    return 0
+
+
 def cmd_config_show(args: argparse.Namespace) -> int:
     init_db()
     config = load_config(args.config)
@@ -220,6 +239,11 @@ def build_parser() -> argparse.ArgumentParser:
     show.add_argument("--id", type=int, required=True, help="Your parkrun athlete number.")
     show.add_argument("--force", action="store_true", help="Ignore the cache and re-fetch.")
     show.set_defaults(func=cmd_athlete_show)
+
+    describe = athlete_sub.add_parser("describe", help="Rich athlete summary (stats, farthest-apart, clubs).")
+    describe.add_argument("--id", type=int, default=None, help="Athlete number (default: from config).")
+    describe.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+    describe.set_defaults(func=cmd_athlete_describe)
 
     config_cmd = sub.add_parser("config", help="Configuration commands.")
     config_sub = config_cmd.add_subparsers(dest="config_command", required=True)

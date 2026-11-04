@@ -11,19 +11,17 @@ from __future__ import annotations
 from langchain_core.tools import BaseTool, tool
 
 from parkrun_agent.agent.context import AgentContext
+from parkrun_agent.describe import athlete_summary
 from parkrun_agent.formatting import format_progress, format_recommendations
 
 
 def build_tools(ctx: AgentContext) -> list[BaseTool]:
     @tool
     def profile_summary() -> str:
-        """Summarise the athlete's parkrun profile: total runs, distinct events,
-        and home location. Use for questions about their overall parkrun history."""
-        a = ctx.athlete
-        return (
-            f"{a.name or 'Athlete'} (A{a.id}): {a.total_runs} runs across "
-            f"{len(a.distinct_event_names)} distinct events. Home: {ctx.home_label}."
-        )
+        """Summarise the athlete's parkrun history: total runs, distinct events,
+        countries, years active, most-visited event, PBs, farthest-apart events,
+        and club badges. Use for 'describe me' / 'my parkrun history' questions."""
+        return athlete_summary(ctx.athlete, ctx.catalogue)
 
     @tool
     def challenge_progress() -> str:

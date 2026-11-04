@@ -34,6 +34,9 @@ parkrun-agent events near --lat 54.6872 --lon 25.2797 --radius 50
 # Fetch + parse + cache your athlete profile, then print a summary
 parkrun-agent athlete show --id <YOUR_ATHLETE_NUMBER>
 
+# Rich athlete summary (countries, years active, PBs, farthest-apart events, clubs)
+parkrun-agent athlete describe
+
 # Configure home + challenges, then see where you stand
 cp config/preferences.example.yaml config/preferences.yaml   # then edit
 parkrun-agent config show            # resolved home + enabled challenges
@@ -82,9 +85,16 @@ including custom ones defined entirely in YAML. See the example file.
 
 ## Challenges
 
-Milestone 2 ships `alphabeteer`, `pirates`, and `compass`, built on a
-`TokenCollectionChallenge` base so new ones are just config. See
-[DESIGN.md](DESIGN.md) §5.
+Built-in: `alphabeteer`, `pirates`, `compass` (token-collection); `wilson`
+(prefix from event #1) and `floating_wilson` (longest consecutive run anywhere —
+far more achievable); and region-completion challenges `australia` + per-state
+`au_wa`/`au_nsw`/`au_vic`/`au_qld`/`au_sa`/`au_tas`/`au_act`/`au_nt` (run every
+event in that region). Enable the ones you want in `preferences.yaml`, or define
+your own in YAML. See [DESIGN.md](DESIGN.md) §5.
+
+> Note: Australian state assignment uses approximate straight-line borders; the
+> WA (129°E) and SA/NT (26°S) borders are exact, but events near the irregular
+> NSW/VIC and QLD/NSW borders may be misclassified.
 
 The database location defaults to `./local_data/parkrun_agent.db` and can be
 overridden with the `PARKRUN_DB_URL` environment variable (any SQLAlchemy URL,

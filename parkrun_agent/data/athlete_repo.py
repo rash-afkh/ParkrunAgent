@@ -55,6 +55,17 @@ def parse_age_grade(text: str) -> float | None:
         return None
 
 
+def parse_clubs(html: str) -> list[str]:
+    """Club badges like 'Member of the Volunteer 25 Club' / 'Member of the 250 Club'."""
+    text = BeautifulSoup(html, "lxml").get_text(" ", strip=True)
+    seen: list[str] = []
+    for club in re.findall(r"Member of the (.+?Club)\b", text):
+        club = re.sub(r"\s+", " ", club).strip()
+        if club and club not in seen:
+            seen.append(club)
+    return seen
+
+
 def _slug_from_href(href: str | None) -> str | None:
     if not href:
         return None
@@ -151,7 +162,9 @@ def parse_athlete_html(html: str, athlete_id: int) -> Athlete:
                 )
             )
 
-    return Athlete(id=athlete_id, name=name, home_event=home_event, runs=runs)
+    return Athlete(
+        id=athlete_id, name=name, home_event=home_event, runs=runs, clubs=parse_clubs(html)
+    )
 
 
 # --- Repository ----------------------------------------------------------
@@ -170,7 +183,8 @@ def _row_to_athlete(row: AthleteRow) -> Athlete:
         )
         for r in sorted(row.runs, key=lambda r: r.run_date)
     ]
-    return Athlete(id=row.id, name=row.name, home_event=row.home_event, runs=runs)
+    clubs = parse_clubs(row.raw_html) if row.raw_html else []
+    return Athlete(id=row.id, name=row.name, home_event=row.home_event, runs=runs, clubs=clubs)
 
 
 class AthleteRepository:

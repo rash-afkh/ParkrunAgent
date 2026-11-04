@@ -8,6 +8,7 @@ once FastAPI is added. Deliberately free of any DB / LangChain concerns.
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -86,3 +87,18 @@ class Athlete(BaseModel):
     @property
     def distinct_event_names(self) -> set[str]:
         return {r.event_name for r in self.runs}
+
+    @property
+    def visited_slugs(self) -> set[str]:
+        return {r.event_slug for r in self.runs if r.event_slug}
+
+
+class Recommendation(BaseModel):
+    """A ranked suggestion of where to run next, with the 'why'."""
+
+    event: Event
+    distance_km: float
+    score: float
+    tier: Literal["local", "stretch", "destination"]
+    reasons: list[str] = Field(default_factory=list)
+    challenge_contributions: dict[str, float] = Field(default_factory=dict)

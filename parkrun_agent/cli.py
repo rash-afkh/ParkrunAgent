@@ -18,9 +18,11 @@ from parkrun_agent.config import (
     resolve_home,
 )
 from parkrun_agent.core.geo import GeoPoint
+from parkrun_agent.core.recommend import ScoringParams
 from parkrun_agent.data.athlete_repo import AthleteRepository
 from parkrun_agent.data.cache import init_db
 from parkrun_agent.data.events_catalogue import EventsCatalogue
+from parkrun_agent.recommend_service import RecommendationService
 
 
 def cmd_init_db(_args: argparse.Namespace) -> int:
@@ -114,6 +116,62 @@ def cmd_challenges_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_tier(title: str, recs: list) -> None:
+    group = [r for r in recs]
+    if not group:
+        return
+    print(f"\n{title}")
+    for r in group:
+        ev = r.event
+        where = ev.location or ev.country_url or ""
+        print(f"  [{r.score:+.2f}]  {ev.name}  —  {r.distance_km:g} km  {where}")
+        for reason in r.reasons[:4]:
+            print(f"       • {reason}")
+
+
+def cmd_recommend(args: argparse.Namespace) -> int:
+    init_db()
+    config = load_config(args.config)
+    athlete_id = args.id or config.athlete_id
+    if athlete_id is None:
+        print("No athlete id (pass --id or set athlete_id in config).", file=sys.stderr)
+        return 1
+
+    catalogue = EventsCatalogue()
+    if not catalogue.all_events():
+        print("Catalogue empty — run 'parkrun-agent events refresh' first.", file=sys.stderr)
+        return 1
+
+    athlete = AthleteRepository().get(athlete_id)
+    challenges = build_challenges(config, catalogue)
+    params = ScoringParams(
+        local_radius_km=args.local or config.preferences.local_radius_km,
+        stretch_radius_km=args.stretch or config.preferences.stretch_radius_km,
+        challenge_weights=config.preferences.challenge_weights,
+    )
+
+    travel = args.lat is not None and args.lon is not None
+    if travel:
+        origin, label = GeoPoint(args.lat, args.lon), f"{args.lat}, {args.lon}"
+    else:
+        origin, label = resolve_home(config.home, catalogue)
+
+    recs = RecommendationService(catalogue).recommend(
+        athlete, challenges, origin, params, travel=travel
+    )
+    mode = "travelling near" if travel else "home"
+    print(f"Recommendations for {athlete.name or athlete_id} ({mode}: {label})")
+    if travel:
+        _print_tier(f"NEAR (≤{params.stretch_radius_km:g} km):", recs)
+    else:
+        _print_tier(f"LOCAL (≤{params.local_radius_km:g} km):", [r for r in recs if r.tier == "local"])
+        _print_tier(f"STRETCH (≤{params.stretch_radius_km:g} km):", [r for r in recs if r.tier == "stretch"])
+        _print_tier("DESTINATION (worth travelling for):", [r for r in recs if r.tier == "destination"])
+    if not recs:
+        print("\nNo suggestions found — try widening --stretch.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="parkrun-agent", description="Find your next parkrun.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -154,6 +212,15 @@ def build_parser() -> argparse.ArgumentParser:
     ch_show.add_argument("--id", type=int, default=None, help="Athlete number (default: from config).")
     ch_show.add_argument("--config", default=DEFAULT_CONFIG_PATH)
     ch_show.set_defaults(func=cmd_challenges_show)
+
+    rec = sub.add_parser("recommend", help="Recommend where to run next.")
+    rec.add_argument("--id", type=int, default=None, help="Athlete number (default: from config).")
+    rec.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+    rec.add_argument("--lat", type=float, default=None, help="Travel origin latitude.")
+    rec.add_argument("--lon", type=float, default=None, help="Travel origin longitude.")
+    rec.add_argument("--local", type=float, default=None, help="Override local radius (km).")
+    rec.add_argument("--stretch", type=float, default=None, help="Override stretch radius (km).")
+    rec.set_defaults(func=cmd_recommend)
 
     return parser
 

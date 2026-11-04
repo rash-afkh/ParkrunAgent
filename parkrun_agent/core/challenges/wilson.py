@@ -62,6 +62,9 @@ class WilsonIndexChallenge(Challenge):
         index = count of leading consecutive completed events in founding order;
         blocker = the first not-yet-done event (the single highest-value target).
         """
+        cache = getattr(self, "_cache", None)
+        if cache is not None and cache[0] == id(athlete):
+            return cache[1]
         done = self._completed_ids(athlete)
         index = 0
         blocker: EventRef | None = None
@@ -76,7 +79,9 @@ class WilsonIndexChallenge(Challenge):
                 upcoming.append(ref)
                 if len(upcoming) >= self._next_preview:
                     break
-        return index, blocker, upcoming
+        result = (index, blocker, upcoming)
+        self._cache = (id(athlete), result)
+        return result
 
     def progress(self, athlete: Athlete) -> ChallengeProgress:
         index, blocker, upcoming = self._index_blocker_upcoming(athlete)
@@ -97,3 +102,9 @@ class WilsonIndexChallenge(Challenge):
         """Only the single blocker advances the index, so only it scores."""
         _index, blocker, _upcoming = self._index_blocker_upcoming(athlete)
         return 1.0 if blocker is not None and event.id == blocker.id else 0.0
+
+    def slots(self, event: Event, athlete: Athlete) -> set[str]:
+        _index, blocker, _upcoming = self._index_blocker_upcoming(athlete)
+        if blocker is not None and event.id == blocker.id:
+            return {f"wilson:#{blocker.id}"}
+        return set()

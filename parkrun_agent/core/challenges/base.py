@@ -57,6 +57,12 @@ class Challenge(ABC):
     @abstractmethod
     def contribution(self, event: Event, athlete: Athlete) -> float: ...
 
+    def slots(self, event: Event, athlete: Athlete) -> set[str]:
+        """The specific, globally-unique 'slots' this event would newly fill,
+        e.g. {'alphabeteer:Z'}. The recommender uses these for per-slot scarcity
+        (the only Z-event in range beats one of ten A-events). Default: none."""
+        return set()
+
 
 class TokenCollectionChallenge(Challenge):
     """Collect a target set of tokens, each derived from an event name."""
@@ -78,10 +84,20 @@ class TokenCollectionChallenge(Challenge):
         self.token_fn = token_fn
 
     def _covered(self, athlete: Athlete) -> set[str]:
+        # Memoised per athlete: the recommender calls this once per candidate
+        # event (thousands of times) but the athlete doesn't change.
+        cache = getattr(self, "_cov_cache", None)
+        if cache is not None and cache[0] == id(athlete):
+            return cache[1]
         covered: set[str] = set()
         for event_name in athlete.distinct_event_names:
             covered |= self.token_fn(event_name) & self._target_set
+        self._cov_cache = (id(athlete), covered)
         return covered
+
+    def _new_targets(self, event: Event, athlete: Athlete) -> set[str]:
+        name = event.short_name or event.name
+        return (self.token_fn(name) & self._target_set) - self._covered(athlete)
 
     def progress(self, athlete: Athlete) -> ChallengeProgress:
         covered = self._covered(athlete)
@@ -99,7 +115,8 @@ class TokenCollectionChallenge(Challenge):
         )
 
     def contribution(self, event: Event, athlete: Athlete) -> float:
-        covered = self._covered(athlete)
-        name = event.short_name or event.name
-        new = (self.token_fn(name) & self._target_set) - covered
+        new = self._new_targets(event, athlete)
         return len(new) / len(self._target_set) if self._target_set else 0.0
+
+    def slots(self, event: Event, athlete: Athlete) -> set[str]:
+        return {f"{self.key}:{t}" for t in self._new_targets(event, athlete)}

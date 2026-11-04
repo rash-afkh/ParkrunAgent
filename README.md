@@ -38,7 +38,22 @@ parkrun-agent athlete show --id <YOUR_ATHLETE_NUMBER>
 cp config/preferences.example.yaml config/preferences.yaml   # then edit
 parkrun-agent config show            # resolved home + enabled challenges
 parkrun-agent challenges show        # your progress per challenge
+
+# Where should I run next? (local / stretch / destination tiers from home)
+parkrun-agent recommend
+
+# "I'm travelling to <place> — which parkrun there?" (manual coords for now;
+# free-text place geocoding arrives with the LangChain agent milestone)
+parkrun-agent recommend --lat 54.6872 --lon 25.2797 --stretch 150
 ```
+
+## Recommendation engine
+
+Milestone 3 (DESIGN.md §6): scores each candidate event by scarcity-weighted
+challenge contribution, novelty and distance, then splits results into **local**
+(≤50 km), **stretch** (further but fills a rare slot) and **destination**
+(globally high-value, e.g. the Wilson blocker) tiers. Adult (5k) events only;
+junior parkruns are excluded. Still no LLM — this is pure, testable Python.
 
 ## Configuration
 

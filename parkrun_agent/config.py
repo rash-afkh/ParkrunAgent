@@ -15,8 +15,13 @@ from pydantic import BaseModel, Field
 from parkrun_agent.core.challenges.base import Challenge
 from parkrun_agent.core.challenges.builtins import BUILTIN_BUILDERS
 from parkrun_agent.core.challenges.registry import build_challenge_from_config
+from parkrun_agent.core.challenges.wilson import wilson_from_events
 from parkrun_agent.core.geo import GeoPoint
 from parkrun_agent.data.events_catalogue import EventsCatalogue
+
+# Wilson is handled specially: unlike the zero-arg built-ins it needs the
+# id-ordered event list from the catalogue.
+WILSON_KEY = "wilson"
 
 DEFAULT_CONFIG_PATH = "config/preferences.yaml"
 
@@ -75,15 +80,27 @@ def resolve_home(home: HomeConfig, catalogue: EventsCatalogue | None = None) -> 
     )
 
 
-def build_challenges(config: AppConfig) -> list[Challenge]:
-    """Instantiate enabled built-ins (default: all) plus any custom challenges."""
-    enabled = config.enabled_challenges or list(BUILTIN_BUILDERS)
+def build_challenges(config: AppConfig, catalogue: EventsCatalogue | None = None) -> list[Challenge]:
+    """Instantiate enabled challenges (default: all) plus any custom ones.
+
+    Wilson needs the events catalogue; it is fetched lazily if not supplied.
+    """
+    enabled = config.enabled_challenges or [*BUILTIN_BUILDERS, WILSON_KEY]
+    known = {*BUILTIN_BUILDERS, WILSON_KEY}
     challenges: list[Challenge] = []
     for key in enabled:
-        builder = BUILTIN_BUILDERS.get(key)
-        if builder is None:
-            raise ValueError(f"Unknown built-in challenge {key!r} (have {list(BUILTIN_BUILDERS)}).")
-        challenges.append(builder())
+        if key == WILSON_KEY:
+            catalogue = catalogue or EventsCatalogue()
+            events = catalogue.all_events()
+            if not events:
+                raise ValueError(
+                    "Wilson Index needs the events catalogue — run 'parkrun-agent events refresh' first."
+                )
+            challenges.append(wilson_from_events(events))
+        elif key in BUILTIN_BUILDERS:
+            challenges.append(BUILTIN_BUILDERS[key]())
+        else:
+            raise ValueError(f"Unknown challenge {key!r} (have {sorted(known)}).")
     for cfg in config.custom_challenges:
         challenges.append(build_challenge_from_config(cfg))
     return challenges

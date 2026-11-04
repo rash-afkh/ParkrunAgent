@@ -305,7 +305,7 @@ class TokenCollectionChallenge(Challenge):
 | **Pirates** | letters present in name; targets = {P,I,R,A,T,E,S} |
 | **Compass Club** | targets = {North, South, East, West} appearing in name |
 | **Stopwatch Bingo** | token = seconds digits of finish time (00–59); targets = 00..59 — *time-based, not event-based* → overrides `contribution` to always return 0 (you can't pick an event to guarantee a second) but still reports progress |
-| **Wilson Index** | run at the events that were the 1st, 2nd … nth founded; index = largest n fully covered. `contribution(event)` high if event's founding rank == current_index + 1 |
+| **Wilson Index** ✅ | run the events in founding order (#1, #2, …); index = length of the unbroken prefix completed. events.json `id` *is* the founding rank (Bushy=1). Not a token challenge — a `Challenge` subclass fed the id-ordered event list as plain data. `contribution(event)=1.0` only for the single blocker (id == index+1). Closed events drop from the catalogue so we never recommend a ghost. |
 | **NENDY** (Nearest Event Not Done Yet) | not a collection; `contribution` = 1 for the single nearest unvisited event |
 | **Tourist / Cowell (distinct events)** | every new distinct event contributes; `contribution` = 1 if unvisited |
 | **Regionnaire** | all events in a chosen region/country |

@@ -51,6 +51,20 @@ def test_build_challenges_enabled_plus_custom(tmp_path):
     assert keys == ["alphabeteer", "pirates", "vowels"]
 
 
+def test_build_challenges_with_wilson_uses_catalogue(db):
+    from parkrun_agent.config import AppConfig
+
+    data = json.loads((FIXTURES / "events_sample.json").read_text())
+    catalogue = EventsCatalogue(fetcher=lambda _etag: (data, "e", False))
+    catalogue.refresh(force=True)
+
+    config = AppConfig(enabled_challenges=["wilson"])
+    challenges = build_challenges(config, catalogue=catalogue)
+    assert [c.key for c in challenges] == ["wilson"]
+    # Fixture ids: Bushy=1, Vingis=2000. The sequence starts at Bushy.
+    assert challenges[0]._seq[0].name == "Bushy parkrun"
+
+
 def test_resolve_home_latlon():
     point, label = resolve_home(HomeConfig(lat=54.68, lon=25.28))
     assert point.lat == 54.68 and point.lon == 25.28

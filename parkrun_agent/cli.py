@@ -100,6 +100,9 @@ def cmd_challenges_show(args: argparse.Namespace) -> int:
           f"({athlete.total_runs} runs, {len(athlete.distinct_event_names)} events):\n")
     for ch in challenges:
         p = ch.progress(athlete)
+        if p.summary is not None:  # unbounded challenge (e.g. Wilson)
+            print(f"  {p.name:<22} {p.summary}")
+            continue
         done = len(p.completed)
         total = done + len(p.remaining)
         flag = "  ✓ COMPLETE" if p.is_complete else ""

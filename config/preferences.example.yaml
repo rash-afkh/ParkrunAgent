@@ -17,8 +17,9 @@ preferences:
     alphabeteer: 1.5
 
 challenges:
-  # Built-in keys: alphabeteer, pirates, compass. Omit `enabled` to use all.
-  enabled: [alphabeteer, pirates, compass]
+  # Built-in keys: alphabeteer, pirates, compass, wilson. Omit `enabled` for all.
+  # (wilson needs the events catalogue — run `events refresh` first.)
+  enabled: [alphabeteer, pirates, compass, wilson]
 
   # Add your own without touching code:
   custom:

@@ -64,6 +64,10 @@ class ChallengeProgress(BaseModel):
     remaining: list[str]
     percent: float
     is_complete: bool
+    summary: str | None = Field(
+        default=None,
+        description="One-line summary for challenges that don't fit a done/total count (e.g. Wilson).",
+    )
 
 
 class Athlete(BaseModel):

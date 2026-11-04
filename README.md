@@ -33,7 +33,25 @@ parkrun-agent events near --lat 54.6872 --lon 25.2797 --radius 50
 
 # Fetch + parse + cache your athlete profile, then print a summary
 parkrun-agent athlete show --id <YOUR_ATHLETE_NUMBER>
+
+# Configure home + challenges, then see where you stand
+cp config/preferences.example.yaml config/preferences.yaml   # then edit
+parkrun-agent config show            # resolved home + enabled challenges
+parkrun-agent challenges show        # your progress per challenge
 ```
+
+## Configuration
+
+`config/preferences.yaml` (gitignored; copy from `preferences.example.yaml`)
+holds your athlete number, home location (either a parkrun **event name/slug**
+or explicit **lat/lon**), search radii, and which challenges are enabled —
+including custom ones defined entirely in YAML. See the example file.
+
+## Challenges
+
+Milestone 2 ships `alphabeteer`, `pirates`, and `compass`, built on a
+`TokenCollectionChallenge` base so new ones are just config. See
+[DESIGN.md](DESIGN.md) §5.
 
 The database location defaults to `./local_data/parkrun_agent.db` and can be
 overridden with the `PARKRUN_DB_URL` environment variable (any SQLAlchemy URL,

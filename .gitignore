@@ -27,6 +27,9 @@ data/*.db
 *.html.cache
 /local_data/
 
+# Personal config (ships as config/preferences.example.yaml)
+config/preferences.yaml
+
 # Test / tooling
 .pytest_cache/
 .coverage

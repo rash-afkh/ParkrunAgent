@@ -55,6 +55,17 @@ class Run(BaseModel):
     age_grade: float | None = Field(default=None, description="Percentage, 0-100")
 
 
+class ChallengeProgress(BaseModel):
+    """An athlete's standing against one challenge."""
+
+    challenge: str = Field(description="Challenge key, e.g. 'alphabeteer'")
+    name: str
+    completed: list[str]
+    remaining: list[str]
+    percent: float
+    is_complete: bool
+
+
 class Athlete(BaseModel):
     """An athlete and their full run history."""
 

@@ -117,6 +117,25 @@ class EventsCatalogue:
             row = s.scalar(select(EventRow).where(EventRow.slug == slug))
             return _row_to_event(row) if row else None
 
+    def find_by_name(self, query: str) -> Event | None:
+        """Resolve a free-text event reference: exact slug, then exact name,
+        then a case-insensitive substring match. Used to turn a configured home
+        event ('Applecross') into coordinates."""
+        q = query.strip().lower()
+        with get_session() as s:
+            rows = s.scalars(select(EventRow)).all()
+        events = [_row_to_event(r) for r in rows]
+        for ev in events:
+            if ev.slug.lower() == q:
+                return ev
+        for ev in events:
+            if ev.name.lower() == q or ev.short_name.lower() == q:
+                return ev
+        for ev in events:
+            if q in ev.name.lower() or q in ev.short_name.lower():
+                return ev
+        return None
+
     def near(self, point: GeoPoint, radius_km: float) -> list[tuple[Event, float]]:
         """Events within radius_km, as (event, distance_km), nearest first."""
         min_lat, max_lat, min_lon, max_lon = bounding_box(point, radius_km)

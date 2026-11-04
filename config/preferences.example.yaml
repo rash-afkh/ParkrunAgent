@@ -1,0 +1,30 @@
+# Copy this to config/preferences.yaml and edit. The real file is gitignored.
+
+athlete_id: 1234567
+
+home:
+  # Option A: a parkrun event name or slug (resolved to coordinates via the
+  # events catalogue — run `parkrun-agent events refresh` first).
+  event: "Bushy parkrun"
+  # Option B: explicit coordinates (takes precedence over `event` if both set).
+  # lat: 51.410992
+  # lon: -0.335791
+
+preferences:
+  local_radius_km: 50      # "nearby" tier
+  stretch_radius_km: 200   # how far to look for high-value "stretch" picks
+  challenge_weights:       # optional: emphasise challenges you care about
+    alphabeteer: 1.5
+
+challenges:
+  # Built-in keys: alphabeteer, pirates, compass. Omit `enabled` to use all.
+  enabled: [alphabeteer, pirates, compass]
+
+  # Add your own without touching code:
+  custom:
+    - key: home_counties
+      name: "Home Counties Tour"
+      type: token_collection
+      token: first_letter        # or 'compass'
+      targets: [S, K, E]
+      description: "Example custom challenge."

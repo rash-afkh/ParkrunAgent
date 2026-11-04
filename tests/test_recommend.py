@@ -123,6 +123,58 @@ def test_junior_events_excluded(db):
     assert "vingisjuniors" not in slugs  # junior (series 2) filtered out
 
 
+def test_revisiting_is_recommended_when_a_challenge_advances(db):
+    """The engine is slots-driven, not visited-filtered: if a challenge says a
+    visited event still advances it, the event is recommended despite being done."""
+    from parkrun_agent.core.challenges.base import Challenge
+    from parkrun_agent.core.models import ChallengeProgress
+
+    class RedoChallenge(Challenge):
+        key = "redo"
+        name = "Redo"
+        description = "Revisiting a specific event advances this."
+
+        def __init__(self, slug):
+            self.target = slug
+
+        def progress(self, athlete):
+            return ChallengeProgress(
+                challenge=self.key, name=self.name, completed=[], remaining=[self.target],
+                percent=0.0, is_complete=False,
+            )
+
+        def contribution(self, event, athlete):
+            return 1.0 if event.slug == self.target else 0.0
+
+        def slots(self, event, athlete):
+            return {f"redo:{event.slug}"} if event.slug == self.target else set()
+
+    cat = _catalogue_with(db, [_feature(1, "vingis", "parkrun Vingis", 54.68, 25.24)])
+    athlete = _athlete(["vingis"])  # already VISITED Vingis
+    recs = RecommendationService(cat).recommend(
+        athlete, [RedoChallenge("vingis")], GeoPoint(54.6872, 25.2797), PARAMS
+    )
+    slugs = {r.event.slug for r in recs}
+    assert "vingis" in slugs  # recommended for revisiting despite being visited
+    assert recs[0].challenge_contributions.get("redo")
+
+
+def test_local_only_suppresses_destinations(db):
+    data = json.loads((FIXTURES / "events_sample.json").read_text())
+    catalogue = EventsCatalogue(fetcher=lambda _etag: (data, "e", False))
+    catalogue.refresh(force=True)
+    athlete = Athlete(id=3244769, runs=[])
+    challenges = [alphabeteer(), wilson_from_events(catalogue.all_events())]
+    vilnius = GeoPoint(54.6872, 25.2797)
+
+    with_dest = RecommendationService(catalogue).recommend(athlete, challenges, vilnius, PARAMS)
+    without = RecommendationService(catalogue).recommend(
+        athlete, challenges, vilnius, PARAMS, include_destinations=False
+    )
+    assert any(r.tier == "destination" for r in with_dest)       # Bushy shows normally
+    assert not any(r.tier == "destination" for r in without)     # suppressed by the flag
+
+
 def test_travel_surfaces_new_event_without_challenge_value(db):
     cat = _catalogue_with(db, [_feature(1, "vingis", "parkrun Vingis", 54.68, 25.24)])
     # Athlete already has a 'V' event, so Vingis advances no challenge — but it's

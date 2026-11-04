@@ -41,6 +41,7 @@ parkrun-agent challenges show        # your progress per challenge
 
 # Where should I run next? (local / stretch / destination tiers from home)
 parkrun-agent recommend
+parkrun-agent recommend --local-only   # hide the global "destination" tier
 
 # "I'm travelling to <place> — which parkrun there?" (manual coords)
 parkrun-agent recommend --lat 54.6872 --lon 25.2797 --stretch 150

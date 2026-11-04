@@ -362,7 +362,11 @@ For each candidate event compute:
 - `scarcity[c]` = `1 / (1 + N)` where `N` = number of *other nearby* candidates
   that could fill the **same** slot. → The only Q-event in 100 km is worth far
   more than one of ten A-events. This is what makes recommendations smart.
-- `novelty` = 1 if unvisited, small positive if visited long ago, else 0.
+- `novelty` = 1 if unvisited, else 0. **Visited events are never excluded** —
+  the engine is slots-driven, so if a challenge's `slots()` says a visited event
+  still advances it (revisiting helps), it is recommended anyway; "visited" only
+  removes the novelty bonus. (The built-in set/id challenges return no slots for
+  a visited event because re-running adds no new letter/id — correct by rule.)
 - `distance_km`.
 
 ### Step 3 — scoring

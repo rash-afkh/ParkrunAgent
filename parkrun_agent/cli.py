@@ -157,7 +157,8 @@ def cmd_recommend(args: argparse.Namespace) -> int:
         origin, label = resolve_home(config.home, catalogue)
 
     recs = RecommendationService(catalogue).recommend(
-        athlete, challenges, origin, params, travel=travel
+        athlete, challenges, origin, params,
+        travel=travel, include_destinations=not args.local_only,
     )
     mode = "travelling near" if travel else "home"
     print(f"Recommendations for {athlete.name or athlete_id} ({mode}: {label})")
@@ -166,9 +167,14 @@ def cmd_recommend(args: argparse.Namespace) -> int:
     else:
         _print_tier(f"LOCAL (≤{params.local_radius_km:g} km):", [r for r in recs if r.tier == "local"])
         _print_tier(f"STRETCH (≤{params.stretch_radius_km:g} km):", [r for r in recs if r.tier == "stretch"])
-        _print_tier("DESTINATION (worth travelling for):", [r for r in recs if r.tier == "destination"])
+        if not args.local_only:
+            _print_tier("DESTINATION (worth travelling for):", [r for r in recs if r.tier == "destination"])
     if not recs:
-        print("\nNo suggestions found — try widening --stretch.")
+        if args.local_only:
+            print(f"\nNothing within {params.stretch_radius_km:g} km advances a challenge — "
+                  "you've run everything nearby. Drop --local-only to see destinations worth travelling for.")
+        else:
+            print("\nNo suggestions found — try widening --stretch.")
     return 0
 
 
@@ -235,6 +241,8 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--lon", type=float, default=None, help="Travel origin longitude.")
     rec.add_argument("--local", type=float, default=None, help="Override local radius (km).")
     rec.add_argument("--stretch", type=float, default=None, help="Override stretch radius (km).")
+    rec.add_argument("--local-only", action="store_true",
+                     help="Only nearby picks; hide the global 'destination' tier.")
     rec.set_defaults(func=cmd_recommend)
 
     ask = sub.add_parser("ask", help="Ask the agent a free-text question (needs ANTHROPIC_API_KEY).")

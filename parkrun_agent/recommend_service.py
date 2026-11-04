@@ -34,6 +34,7 @@ class RecommendationService:
         params: ScoringParams,
         *,
         travel: bool = False,
+        include_destinations: bool = True,
         max_local: int = 5,
         max_stretch: int = 5,
         max_destination: int = 3,
@@ -71,6 +72,8 @@ class RecommendationService:
             [r for r in near_recs if r.tier == "stretch" and r.challenge_contributions],
             max_stretch,
         )
+        if not include_destinations:
+            return local + stretch
         destination = self._destinations(
             athlete, challenges, origin, params, set(slot_counts), visited, max_destination
         )

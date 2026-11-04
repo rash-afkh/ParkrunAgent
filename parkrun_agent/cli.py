@@ -246,7 +246,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _load_dotenv() -> None:
+    """Load a local .env (e.g. ANTHROPIC_API_KEY) if python-dotenv is available."""
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _load_dotenv()
     args = build_parser().parse_args(argv)
     return args.func(args)
 

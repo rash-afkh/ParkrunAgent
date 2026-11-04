@@ -53,8 +53,23 @@ def build_agent(config_path: str, model: str | None = None):
     return agent, ctx
 
 
+def _message_text(message) -> str:
+    """Extract just the text from an assistant message, dropping thinking/other
+    blocks. Content may be a plain string or a list of block dicts/objects."""
+    content = message.content
+    if isinstance(content, str):
+        return content.strip()
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, dict):
+            if block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        elif getattr(block, "type", None) == "text":
+            parts.append(getattr(block, "text", ""))
+    return "\n".join(p for p in parts if p).strip()
+
+
 def ask(config_path: str, question: str, model: str | None = None) -> str:
     agent, _ctx = build_agent(config_path, model)
     result = agent.invoke({"messages": [{"role": "user", "content": question}]})
-    final = result["messages"][-1]
-    return final.content if isinstance(final.content, str) else str(final.content)
+    return _message_text(result["messages"][-1])

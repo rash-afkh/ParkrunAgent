@@ -53,6 +53,21 @@ def test_parse_event_history():
     assert parse_event_history(HISTORY_HTML) == [(3, 120, 8), (2, 95, 7), (1, 210, 9)]
 
 
+def test_parse_event_history_localized():
+    # Lithuanian / Finnish labels — detection must be locale-independent.
+    html = """
+    <table><tbody>
+      <tr><td>112</td><td>2026-10-31 Domas (Vyr.) 19:16</td>
+          <td>69 69 finišavusių finišavę</td><td>11 11 savanorių</td>
+          <td>Domas 19:16</td></tr>
+      <tr><td>293</td><td>2026-10-17 Campbell (M) 16:27</td>
+          <td>130 130 maaliin tulleet</td><td>8 8 vapaaehtoiset</td>
+          <td>Campbell 16:27</td></tr>
+    </tbody></table>
+    """
+    assert parse_event_history(html) == [(112, 69, 11), (293, 130, 8)]
+
+
 def test_refresh_fetches_once_and_builds_summary(db):
     cat = _catalogue(db)
     fetches = {"n": 0}

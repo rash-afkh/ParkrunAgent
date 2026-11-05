@@ -24,9 +24,12 @@ HistoryFetcher = Callable[[str, str], str]
 def parse_event_history(html: str) -> list[tuple[int, int, int | None]]:
     """Return [(run_number, finishers, volunteers)] from an event-history page.
 
-    Columns are identified by their in-cell label text ('... finishers' /
-    '... volunteers') rather than header position, because parkrun's responsive
-    table duplicates values and shifts columns."""
+    Locale-independent: parkrun's column labels are translated (e.g. Lithuanian
+    'Finišavę', Finnish 'Maaliin tulleet', Japanese), so we can't match on the
+    English word. Instead we rely on structure — the first cell is the event
+    number, and the finishers/volunteers cells render the value twice
+    ('177 177 ...', '69 69 ...') from the responsive template. Those duplicated-
+    number cells, in order, are finishers then volunteers."""
     soup = BeautifulSoup(html, "lxml")
     table = soup.find("table")
     if table is None:
@@ -40,17 +43,14 @@ def parse_event_history(html: str) -> list[tuple[int, int, int | None]]:
         if not head:  # first cell is the event number
             continue
         run_number = int(head.group(1))
-        finishers = volunteers = None
+        stats: list[int] = []
         for td in tds:
-            text = td.get_text(" ", strip=True).lower()
-            lead = re.match(r"\s*(\d+)", text)
-            if not lead:
-                continue
-            if "finisher" in text and "first" not in text:
-                finishers = int(lead.group(1))
-            elif "volunteer" in text:
-                volunteers = int(lead.group(1))
-        if finishers is not None:
+            m = re.match(r"\s*(\d+)\s+(\d+)\b", td.get_text(" ", strip=True))
+            if m and m.group(1) == m.group(2):  # value rendered twice
+                stats.append(int(m.group(1)))
+        if stats:
+            finishers = stats[0]
+            volunteers = stats[1] if len(stats) > 1 else None
             out.append((run_number, finishers, volunteers))
     return out
 

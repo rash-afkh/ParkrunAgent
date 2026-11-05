@@ -66,6 +66,27 @@ def parse_clubs(html: str) -> list[str]:
     return seen
 
 
+def parse_volunteer_summary(html: str) -> tuple[int, dict[str, int]]:
+    """Parse the Volunteer Summary table (Role, Occasions) from the profile page.
+    Returns (total occasions, {role: occasions})."""
+    soup = BeautifulSoup(html, "lxml")
+    for table in soup.find_all("table"):
+        headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
+        if any("role" in h for h in headers) and any("occasion" in h for h in headers):
+            roles: dict[str, int] = {}
+            body = table.find("tbody") or table
+            for tr in body.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) < 2:
+                    continue
+                role = tds[0].get_text(strip=True)
+                m = re.match(r"\s*(\d+)", tds[1].get_text(" ", strip=True))
+                if role and m:
+                    roles[role] = int(m.group(1))
+            return sum(roles.values()), roles
+    return 0, {}
+
+
 def _slug_from_href(href: str | None) -> str | None:
     if not href:
         return None
@@ -184,12 +205,17 @@ def _row_to_athlete(row: AthleteRow) -> Athlete:
         for r in sorted(row.runs, key=lambda r: r.run_date)
     ]
     clubs = parse_clubs(row.raw_html) if row.raw_html else []
-    return Athlete(id=row.id, name=row.name, home_event=row.home_event, runs=runs, clubs=clubs)
+    return Athlete(
+        id=row.id, name=row.name, home_event=row.home_event, runs=runs, clubs=clubs,
+        volunteer_count=row.volunteer_count,
+        volunteer_roles=row.volunteer_roles or {},
+    )
 
 
 class AthleteRepository:
-    def __init__(self, fetcher: HtmlFetcher | None = None):
+    def __init__(self, fetcher: HtmlFetcher | None = None, profile_fetcher: HtmlFetcher | None = None):
         self._fetch = fetcher or fetchers.fetch_athlete_history_html
+        self._fetch_profile = profile_fetcher or fetchers.fetch_athlete_profile_html
 
     def get(self, athlete_id: int, *, force: bool = False, now: datetime | None = None) -> Athlete:
         now = now or datetime.now(timezone.utc)
@@ -201,6 +227,12 @@ class AthleteRepository:
         try:
             html = self._fetch(athlete_id)
             athlete = parse_athlete_html(html, athlete_id)
+            try:  # volunteers come from a second page; they're optional
+                total, roles = parse_volunteer_summary(self._fetch_profile(athlete_id))
+                athlete.volunteer_count = total
+                athlete.volunteer_roles = roles
+            except Exception:
+                pass
             self._store(athlete, html, now)
             return athlete
         except Exception:
@@ -220,6 +252,8 @@ class AthleteRepository:
                     home_event=athlete.home_event,
                     fetched_at=now,
                     raw_html=html,
+                    volunteer_count=athlete.volunteer_count,
+                    volunteer_roles=athlete.volunteer_roles or None,
                 )
             )
             # Full-history scrape: replace this athlete's runs wholesale.

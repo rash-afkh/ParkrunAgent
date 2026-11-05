@@ -3,6 +3,10 @@ import pytest
 from parkrun_agent.data.athlete_repo import AthleteRepository
 
 
+def _no_profile(_id):
+    return ""  # offline: no volunteer page
+
+
 def test_get_fetches_stores_and_serves_from_cache(db, athlete_html):
     calls = {"n": 0}
 
@@ -10,7 +14,7 @@ def test_get_fetches_stores_and_serves_from_cache(db, athlete_html):
         calls["n"] += 1
         return athlete_html
 
-    repo = AthleteRepository(fetcher=fetch)
+    repo = AthleteRepository(fetcher=fetch, profile_fetcher=_no_profile)
     a1 = repo.get(1234567, force=True)
     assert a1.total_runs == 3
     assert calls["n"] == 1
@@ -26,13 +30,13 @@ def test_get_fetches_stores_and_serves_from_cache(db, athlete_html):
 
 
 def test_fail_soft_serves_stale_cache_on_fetch_error(db, athlete_html):
-    good = AthleteRepository(fetcher=lambda _id: athlete_html)
+    good = AthleteRepository(fetcher=lambda _id: athlete_html, profile_fetcher=_no_profile)
     good.get(1234567, force=True)
 
     def boom(_id):
         raise RuntimeError("network down")
 
-    broken = AthleteRepository(fetcher=boom)
+    broken = AthleteRepository(fetcher=boom, profile_fetcher=_no_profile)
     athlete = broken.get(1234567, force=True)  # must fall back to cache
     assert athlete.total_runs == 3
 
@@ -42,4 +46,4 @@ def test_fail_soft_reraises_without_cache(db):
         raise RuntimeError("network down")
 
     with pytest.raises(RuntimeError):
-        AthleteRepository(fetcher=boom).get(999, force=True)
+        AthleteRepository(fetcher=boom, profile_fetcher=_no_profile).get(999, force=True)

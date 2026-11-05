@@ -60,6 +60,11 @@ def athlete_summary(athlete: Athlete, catalogue: EventsCatalogue) -> str:
                     far_km, pair = d, (ran_events[i], ran_events[j])
         lines.append(f"- Farthest-apart events: {far_km:.0f} km — {pair[0].name} <-> {pair[1].name}")
 
+    if a.volunteer_count is not None:
+        top = sorted(a.volunteer_roles.items(), key=lambda kv: kv[1], reverse=True)[:3]
+        roles = f" (top: {', '.join(f'{r} ×{n}' for r, n in top)})" if top else ""
+        lines.append(f"- Volunteering: {a.volunteer_count} occasions{roles}")
+
     if a.clubs:
         lines.append(f"- Clubs: {', '.join(a.clubs)}")
 

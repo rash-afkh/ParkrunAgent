@@ -22,6 +22,8 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 # and works from any country domain regardless of the athlete's home country.
 PARKRUN_DEFAULT_DOMAIN = "www.parkrun.org.uk"
 ATHLETE_HISTORY_URL_TEMPLATE = "https://{domain}/parkrunner/{athlete_number}/all/"
+ATHLETE_PROFILE_URL_TEMPLATE = "https://{domain}/parkrunner/{athlete_number}/"
+EVENT_HISTORY_URL_TEMPLATE = "https://{domain}/{event_slug}/results/eventhistory/"
 
 DEFAULT_TIMEOUT = 20
 
@@ -61,6 +63,22 @@ def fetch_events_json(etag: str | None = None) -> tuple[dict | None, str | None,
 
 def fetch_athlete_history_html(athlete_number: int, domain: str = PARKRUN_DEFAULT_DOMAIN) -> str:
     url = ATHLETE_HISTORY_URL_TEMPLATE.format(domain=domain, athlete_number=athlete_number)
+    resp = _get(url)
+    resp.raise_for_status()
+    return resp.text
+
+
+def fetch_athlete_profile_html(athlete_number: int, domain: str = PARKRUN_DEFAULT_DOMAIN) -> str:
+    """The main profile page (/parkrunner/<id>/) — has the Volunteer Summary."""
+    url = ATHLETE_PROFILE_URL_TEMPLATE.format(domain=domain, athlete_number=athlete_number)
+    resp = _get(url)
+    resp.raise_for_status()
+    return resp.text
+
+
+def fetch_event_history_html(event_slug: str, domain: str = PARKRUN_DEFAULT_DOMAIN) -> str:
+    """An event's history page — one row per staging, with finisher counts."""
+    url = EVENT_HISTORY_URL_TEMPLATE.format(domain=domain, event_slug=event_slug)
     resp = _get(url)
     resp.raise_for_status()
     return resp.text

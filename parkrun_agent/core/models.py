@@ -79,6 +79,8 @@ class Athlete(BaseModel):
     home_event: str | None = None
     runs: list[Run] = Field(default_factory=list)
     clubs: list[str] = Field(default_factory=list, description="Club badges, e.g. '250 Club'")
+    volunteer_count: int | None = Field(default=None, description="Total volunteer occasions")
+    volunteer_roles: dict[str, int] = Field(default_factory=dict)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

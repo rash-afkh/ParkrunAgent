@@ -15,7 +15,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -54,10 +54,30 @@ def get_session() -> Session:
     return _Session()
 
 
+# Columns added after the initial release; applied to existing SQLite DBs so the
+# cache doesn't need rebuilding. create_all() handles brand-new tables already.
+_ADDITIVE_COLUMNS = {
+    "athletes": {"volunteer_count": "INTEGER", "volunteer_roles": "JSON"},
+}
+
+
+def _apply_additive_migrations(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return  # Postgres uses Alembic (future); SQLite gets lightweight ALTERs.
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, columns in _ADDITIVE_COLUMNS.items():
+            existing = {c["name"] for c in insp.get_columns(table)}
+            for col, ddl in columns.items():
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+
+
 def init_db(url: str | None = None) -> Engine:
     """Create all tables and seed the single catalogue_meta row."""
     engine = get_engine(url)
     Base.metadata.create_all(engine)
+    _apply_additive_migrations(engine)
     with get_session() as s:
         if s.scalar(select(CatalogueMetaRow).where(CatalogueMetaRow.id == 1)) is None:
             s.add(CatalogueMetaRow(id=1))

@@ -1,7 +1,7 @@
 import json
 from datetime import date
 
-from parkrun_agent.data.athlete_repo import parse_clubs
+from parkrun_agent.data.athlete_repo import parse_clubs, parse_volunteer_summary
 from parkrun_agent.data.events_catalogue import EventsCatalogue
 from parkrun_agent.core.models import Athlete, Run
 from parkrun_agent.describe import athlete_summary
@@ -15,6 +15,20 @@ def test_parse_clubs():
     )
     assert parse_clubs(html) == ["Volunteer 25 Club", "250 Club"]
     assert parse_clubs("<p>no clubs here</p>") == []
+
+
+def test_parse_volunteer_summary():
+    html = """
+    <h3>Volunteer Summary</h3>
+    <table><thead><tr><th>Role</th><th>Occasions</th></tr></thead><tbody>
+      <tr><td>Marshal</td><td>20 20 Marshal</td></tr>
+      <tr><td>Timekeeper</td><td>6 6 Timekeeper</td></tr>
+    </tbody></table>
+    """
+    total, roles = parse_volunteer_summary(html)
+    assert total == 26
+    assert roles == {"Marshal": 20, "Timekeeper": 6}
+    assert parse_volunteer_summary("<p>nothing</p>") == (0, {})
 
 
 def test_athlete_summary_stats(db):

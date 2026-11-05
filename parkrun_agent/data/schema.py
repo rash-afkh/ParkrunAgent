@@ -70,6 +70,8 @@ class AthleteRow(Base):
     home_event: Mapped[str | None] = mapped_column(String(256), nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     raw_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    volunteer_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    volunteer_roles: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     runs: Mapped[list[RunRow]] = relationship(
         back_populates="athlete", cascade="all, delete-orphan"
@@ -93,6 +95,19 @@ class RunRow(Base):
     age_grade: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     athlete: Mapped[AthleteRow] = relationship(back_populates="runs")
+
+
+class EventOccurrenceRow(Base):
+    """One staging of an event (from its event-history page). Historical rows are
+    immutable, so they're cached permanently. Used for crowd/field-size stats."""
+
+    __tablename__ = "event_occurrences"
+
+    event_slug: Mapped[str] = mapped_column(String(128), primary_key=True)
+    run_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    finishers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    volunteers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 # --- Tables reserved for later milestones (defined now to avoid churn) ---

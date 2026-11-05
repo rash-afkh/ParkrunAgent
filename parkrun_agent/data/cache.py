@@ -57,7 +57,11 @@ def get_session() -> Session:
 # Columns added after the initial release; applied to existing SQLite DBs so the
 # cache doesn't need rebuilding. create_all() handles brand-new tables already.
 _ADDITIVE_COLUMNS = {
-    "athletes": {"volunteer_count": "INTEGER", "volunteer_roles": "JSON"},
+    "athletes": {
+        "volunteer_count": "INTEGER",
+        "volunteer_roles": "JSON",
+        "crowd_summary": "JSON",
+    },
 }
 
 

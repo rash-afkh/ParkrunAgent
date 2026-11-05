@@ -84,5 +84,21 @@ class EventOccurrencesRepo:
                         finishers=finishers, volunteers=volunteers, fetched_at=now,
                     )
                 )
+            if not occurrences:
+                self._mark(s, slug, now)
             s.commit()
         return len(occurrences)
+
+    def mark_unavailable(self, slug: str, now: datetime | None = None) -> None:
+        """Record that an event's history couldn't be fetched (e.g. cancelled /
+        404), so it isn't retried on every weekly update."""
+        with get_session() as s:
+            self._mark(s, slug, now or datetime.now(timezone.utc))
+            s.commit()
+
+    @staticmethod
+    def _mark(session, slug: str, now: datetime) -> None:
+        # Sentinel row (run_number 0 never occurs) marking "fetched, no data".
+        session.merge(
+            EventOccurrenceRow(event_slug=slug, run_number=0, finishers=None, volunteers=None, fetched_at=now)
+        )

@@ -1,71 +1,108 @@
-"""Crowd / field-size stats: match each of an athlete's runs to the finisher
-count of that specific event staging, and report the most/least crowded.
+"""Crowd / field-size stats, stored as a compact per-athlete summary.
 
-The finisher data needs one event-history fetch per distinct event (cached
-permanently), so backfilling is opt-in and rate-limited.
+Rather than caching every event's full history, we keep one small summary per
+athlete (most/least crowded run + location/date, average, coverage) and update
+it incrementally: each refresh fetches field sizes only for the athlete's events
+we haven't seen yet (capped unless `backfill=True`), tolerating cancelled events
+whose pages 404. Historical runs are immutable, so the summary only ever gains
+coverage.
 """
 
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 from typing import Callable
 
-from parkrun_agent.core.models import Athlete, Run
+from parkrun_agent.core.models import Athlete
+from parkrun_agent.data.athlete_repo import set_crowd_summary
 from parkrun_agent.data.event_occurrences import EventOccurrencesRepo
 from parkrun_agent.data.events_catalogue import EventsCatalogue
 
 
-def backfill_crowds(
-    athlete: Athlete,
-    repo: EventOccurrencesRepo,
-    catalogue: EventsCatalogue | None = None,
-    *,
-    max_events: int | None = None,
-    delay: float = 1.0,
-    log: Callable[[str], None] = print,
-) -> int:
-    """Fetch event histories for the athlete's distinct events not yet cached.
-    Each event page lives on its home-country domain, resolved from the catalogue.
-    Returns the number of events fetched. Polite: one request per `delay` seconds."""
-    domains = {e.slug: e.country_url for e in catalogue.all_events()} if catalogue else {}
-    slugs = sorted({r.event_slug for r in athlete.runs if r.event_slug})
-    todo = [s for s in slugs if not repo.has_event(s)]
-    if max_events is not None:
-        todo = todo[:max_events]
-    for i, slug in enumerate(todo, 1):
-        log(f"  [{i}/{len(todo)}] fetching event history: {slug}")
-        try:
-            repo.backfill_event(slug, domains.get(slug))
-        except Exception as exc:  # noqa: BLE001 - one bad event shouldn't stop the rest
-            log(f"      skipped {slug}: {exc}")
-        if delay and i < len(todo):
-            time.sleep(delay)
-    return len(todo)
-
-
-def runs_with_finishers(athlete: Athlete, repo: EventOccurrencesRepo) -> list[tuple[Run, int]]:
-    out: list[tuple[Run, int]] = []
+def build_summary(athlete: Athlete, repo: EventOccurrencesRepo, catalogue: EventsCatalogue) -> dict | None:
+    """Compute the summary from whatever field-size data is already cached."""
+    by_slug = {e.slug: e for e in catalogue.all_events()}
+    pairs = []
     for r in athlete.runs:
         if not r.event_slug:
             continue
         fin = repo.finishers_for(r.event_slug, r.run_number)
         if fin:
-            out.append((r, fin))
-    return out
-
-
-def format_crowds(pairs: list[tuple[Run, int]], *, distinct_events: int, total_runs: int) -> str:
+            pairs.append((r, fin))
     if not pairs:
-        return ("No field-size data cached yet — run 'parkrun-agent athlete crowds' "
-                "to fetch it (one request per distinct event).")
-    pairs_sorted = sorted(pairs, key=lambda p: p[1])
-    least_run, least = pairs_sorted[0]
-    most_run, most = pairs_sorted[-1]
-    avg = sum(f for _, f in pairs) / len(pairs)
-    coverage = f"{len(pairs)}/{total_runs} runs"
+        return None
+    pairs.sort(key=lambda p: p[1])
+
+    def entry(run, finishers):
+        ev = by_slug.get(run.event_slug)
+        return {
+            "finishers": finishers,
+            "event": run.event_name,
+            "location": ev.location if ev else None,
+            "date": run.run_date.isoformat(),
+        }
+
+    least_r, least = pairs[0]
+    most_r, most = pairs[-1]
+    return {
+        "covered": len(pairs),
+        "total_runs": athlete.total_runs,
+        "avg": round(sum(f for _, f in pairs) / len(pairs)),
+        "most": entry(most_r, most),
+        "least": entry(least_r, least),
+        "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def refresh(
+    athlete: Athlete,
+    repo: EventOccurrencesRepo,
+    catalogue: EventsCatalogue,
+    *,
+    backfill: bool = False,
+    max_new: int = 5,
+    delay: float = 1.0,
+    log: Callable[[str], None] = print,
+) -> dict | None:
+    """Fetch field sizes for not-yet-seen events (all if backfill, else up to
+    max_new), rebuild the summary, persist it, and return it."""
+    domains = {e.slug: e.country_url for e in catalogue.all_events()}
+    needed = [
+        slug for slug in sorted({r.event_slug for r in athlete.runs if r.event_slug})
+        if not repo.has_event(slug)
+    ]
+    if not backfill:
+        needed = needed[:max_new]
+
+    for i, slug in enumerate(needed, 1):
+        log(f"  [{i}/{len(needed)}] fetching field sizes: {slug}")
+        try:
+            repo.backfill_event(slug, domains.get(slug))
+        except Exception as exc:  # noqa: BLE001 - cancelled/404 events are expected
+            log(f"      unavailable ({exc}); won't retry")
+            repo.mark_unavailable(slug)
+        if delay and i < len(needed):
+            time.sleep(delay)
+
+    summary = build_summary(athlete, repo, catalogue)
+    if summary is not None:
+        set_crowd_summary(athlete.id, summary)
+    return summary
+
+
+def format_summary(summary: dict | None) -> str:
+    if not summary:
+        return ("No crowd data yet — run 'parkrun-agent athlete crowds --backfill' "
+                "to fetch field sizes for your events.")
+
+    def line(label: str, e: dict) -> str:
+        loc = f", {e['location']}" if e.get("location") else ""
+        return f"- {label}: {e['finishers']} finishers — {e['event']} ({e['date']}{loc})"
+
     return "\n".join([
-        f"Crowd stats ({coverage} with field-size data):",
-        f"- Average field size on your runs: {avg:.0f}",
-        f"- Most crowded: {most} finishers — {most_run.event_name} ({most_run.run_date})",
-        f"- Least crowded: {least} finishers — {least_run.event_name} ({least_run.run_date})",
+        f"Crowd stats ({summary['covered']}/{summary['total_runs']} runs with data, "
+        f"avg field {summary['avg']}):",
+        line("Most crowded", summary["most"]),
+        line("Least crowded", summary["least"]),
     ])

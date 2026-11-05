@@ -1,10 +1,12 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 from parkrun_agent.core.models import Athlete, Run
-from parkrun_agent.crowds import backfill_crowds, format_crowds, runs_with_finishers
+from parkrun_agent.crowds import format_summary, refresh
+from parkrun_agent.data.cache import get_session
 from parkrun_agent.data.event_occurrences import EventOccurrencesRepo, parse_event_history
+from parkrun_agent.data.events_catalogue import EventsCatalogue
+from parkrun_agent.data.schema import AthleteRow
 
-# Minimal event-history markup mirroring parkrun's duplicated responsive cells.
 HISTORY_HTML = """
 <table><tbody>
   <tr><td>3</td><td>2025-01-18 Someone (M) 18:00</td>
@@ -16,21 +18,43 @@ HISTORY_HTML = """
 </tbody></table>
 """
 
+CATALOGUE = {
+    "countries": {"3": {"url": "www.parkrun.com.au"}},
+    "events": {"features": [{
+        "id": 1, "type": "Feature", "geometry": {"type": "Point", "coordinates": [115.8, -32.0]},
+        "properties": {"eventname": "myevent", "EventLongName": "My Event parkrun",
+                       "EventShortName": "My Event", "countrycode": 3,
+                       "EventLocation": "My Park, Perth", "seriesid": 1},
+    }]},
+}
+
+
+def _catalogue(db):
+    cat = EventsCatalogue(fetcher=lambda _etag: (CATALOGUE, "e", False))
+    cat.refresh(force=True)
+    return cat
+
+
+def _athlete(db):
+    # The athlete row must exist in the DB so set_crowd_summary can persist.
+    runs = [
+        Run(event_name="My Event", event_slug="myevent", run_date=date(2025, 1, 4),
+            run_number=1, time_seconds=1500),   # 210 finishers
+        Run(event_name="My Event", event_slug="myevent", run_date=date(2025, 1, 18),
+            run_number=3, time_seconds=1500),   # 120 finishers
+    ]
+    with get_session() as s:
+        s.add(AthleteRow(id=3244769, name="Me", fetched_at=datetime.now(timezone.utc)))
+        s.commit()
+    return Athlete(id=3244769, name="Me", runs=runs)
+
 
 def test_parse_event_history():
-    occ = parse_event_history(HISTORY_HTML)
-    assert occ == [(3, 120, 8), (2, 95, 7), (1, 210, 9)]
+    assert parse_event_history(HISTORY_HTML) == [(3, 120, 8), (2, 95, 7), (1, 210, 9)]
 
 
-def _athlete(runs):
-    return Athlete(id=3244769, runs=runs)
-
-
-def _run(slug, run_number, d):
-    return Run(event_name=slug.title(), event_slug=slug, run_date=d, run_number=run_number, time_seconds=1500)
-
-
-def test_backfill_and_match_finishers(db):
+def test_refresh_fetches_once_and_builds_summary(db):
+    cat = _catalogue(db)
     fetches = {"n": 0}
 
     def fetch(_slug, _domain=None):
@@ -38,32 +62,58 @@ def test_backfill_and_match_finishers(db):
         return HISTORY_HTML
 
     repo = EventOccurrencesRepo(fetcher=fetch)
-    athlete = _athlete([
-        _run("myevent", 1, date(2025, 1, 4)),   # 210 finishers
-        _run("myevent", 3, date(2025, 1, 18)),  # 120 finishers
-    ])
+    athlete = _athlete(db)
 
-    assert backfill_crowds(athlete, repo, delay=0) == 1  # one distinct event
+    summary = refresh(athlete, repo, cat, delay=0)
+    assert fetches["n"] == 1
+    assert summary["covered"] == 2
+    assert summary["most"]["finishers"] == 210
+    assert summary["least"]["finishers"] == 120
+    assert summary["least"]["location"] == "My Park, Perth"
+
+    # Second refresh: event already cached -> no new fetch.
+    refresh(athlete, repo, cat, delay=0)
     assert fetches["n"] == 1
 
-    pairs = runs_with_finishers(athlete, repo)
-    assert sorted(f for _, f in pairs) == [120, 210]
 
-    # Second backfill does nothing — already cached.
-    assert backfill_crowds(athlete, repo, delay=0) == 0
+def test_refresh_marks_unavailable_and_doesnt_retry(db):
+    cat = _catalogue(db)
+    fetches = {"n": 0}
+
+    def boom(_slug, _domain=None):
+        fetches["n"] += 1
+        raise RuntimeError("404")
+
+    repo = EventOccurrencesRepo(fetcher=boom)
+    athlete = _athlete(db)
+
+    assert refresh(athlete, repo, cat, delay=0) is None  # no data
+    assert fetches["n"] == 1
+    refresh(athlete, repo, cat, delay=0)  # marked unavailable -> not retried
     assert fetches["n"] == 1
 
 
-def test_format_crowds():
-    runs = [
-        (_run("busy", 1, date(2025, 1, 4)), 210),
-        (_run("quiet", 1, date(2025, 2, 1)), 40),
-    ]
-    out = format_crowds(runs, distinct_events=2, total_runs=5)
-    assert "Most crowded: 210" in out
-    assert "Least crowded: 40" in out
+def test_no_fetch_builds_from_cache_only(db):
+    cat = _catalogue(db)
+    repo = EventOccurrencesRepo(fetcher=lambda s, d=None: HISTORY_HTML)
+    athlete = _athlete(db)
+    repo.backfill_event("myevent", "www.parkrun.com.au")  # pre-cache
+
+    called = {"n": 0}
+    repo._fetch = lambda *a, **k: (called.__setitem__("n", called["n"] + 1) or HISTORY_HTML)
+    summary = refresh(athlete, repo, cat, max_new=0, delay=0)  # no-fetch mode
+    assert called["n"] == 0
+    assert summary["covered"] == 2
+
+
+def test_format_summary():
+    summary = {
+        "covered": 2, "total_runs": 5, "avg": 165,
+        "most": {"finishers": 210, "event": "Busy", "location": "X", "date": "2025-01-04"},
+        "least": {"finishers": 40, "event": "Quiet", "location": None, "date": "2025-02-01"},
+    }
+    out = format_summary(summary)
+    assert "Most crowded: 210 finishers — Busy" in out
+    assert "Least crowded: 40 finishers — Quiet" in out
     assert "2/5 runs" in out
-
-
-def test_format_crowds_empty():
-    assert "No field-size data" in format_crowds([], distinct_events=0, total_runs=0)
+    assert "No crowd data" in format_summary(None)

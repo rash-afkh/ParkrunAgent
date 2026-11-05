@@ -72,6 +72,7 @@ class AthleteRow(Base):
     raw_html: Mapped[str | None] = mapped_column(Text, nullable=True)
     volunteer_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     volunteer_roles: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    crowd_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     runs: Mapped[list[RunRow]] = relationship(
         back_populates="athlete", cascade="all, delete-orphan"

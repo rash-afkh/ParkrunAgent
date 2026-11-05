@@ -37,10 +37,10 @@ parkrun-agent athlete show --id <YOUR_ATHLETE_NUMBER>
 # Rich athlete summary (countries, years active, PBs, farthest-apart, volunteering, clubs)
 parkrun-agent athlete describe
 
-# Most / least crowded parkruns you've run (one fetch per event, cached forever)
-parkrun-agent athlete crowds                 # full backfill (~1 req/event, ~2 min first time)
-parkrun-agent athlete crowds --max-events 15 # fetch a sample first
-parkrun-agent athlete crowds --no-fetch      # cached data only
+# Most / least crowded parkruns you've run (compact per-athlete summary)
+parkrun-agent athlete crowds                 # incremental: fetch up to 5 new events, update summary
+parkrun-agent athlete crowds --backfill      # one-time: fetch ALL your events (slower)
+parkrun-agent athlete crowds --no-fetch      # rebuild summary from cache only
 
 # Configure home + challenges, then see where you stand
 cp config/preferences.example.yaml config/preferences.yaml   # then edit

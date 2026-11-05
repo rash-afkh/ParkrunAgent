@@ -209,7 +209,17 @@ def _row_to_athlete(row: AthleteRow) -> Athlete:
         id=row.id, name=row.name, home_event=row.home_event, runs=runs, clubs=clubs,
         volunteer_count=row.volunteer_count,
         volunteer_roles=row.volunteer_roles or {},
+        crowd_summary=row.crowd_summary,
     )
+
+
+def set_crowd_summary(athlete_id: int, summary: dict) -> None:
+    """Persist the compact crowd summary on the athlete row (preserved across refreshes)."""
+    with get_session() as s:
+        row = s.get(AthleteRow, athlete_id)
+        if row is not None:
+            row.crowd_summary = summary
+            s.commit()
 
 
 class AthleteRepository:
@@ -245,17 +255,15 @@ class AthleteRepository:
 
     def _store(self, athlete: Athlete, html: str, now: datetime) -> None:
         with get_session() as s:
-            s.merge(
-                AthleteRow(
-                    id=athlete.id,
-                    name=athlete.name,
-                    home_event=athlete.home_event,
-                    fetched_at=now,
-                    raw_html=html,
-                    volunteer_count=athlete.volunteer_count,
-                    volunteer_roles=athlete.volunteer_roles or None,
-                )
-            )
+            # Update-in-place so crowd_summary (set separately) survives refreshes.
+            row = s.get(AthleteRow, athlete.id) or AthleteRow(id=athlete.id)
+            row.name = athlete.name
+            row.home_event = athlete.home_event
+            row.fetched_at = now
+            row.raw_html = html
+            row.volunteer_count = athlete.volunteer_count
+            row.volunteer_roles = athlete.volunteer_roles or None
+            s.add(row)
             # Full-history scrape: replace this athlete's runs wholesale.
             s.execute(delete(RunRow).where(RunRow.athlete_id == athlete.id))
             for r in athlete.runs:

@@ -81,6 +81,7 @@ class Athlete(BaseModel):
     clubs: list[str] = Field(default_factory=list, description="Club badges, e.g. '250 Club'")
     volunteer_count: int | None = Field(default=None, description="Total volunteer occasions")
     volunteer_roles: dict[str, int] = Field(default_factory=dict)
+    crowd_summary: dict | None = Field(default=None, description="Cached most/least-crowded stats")
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -92,7 +92,7 @@ def cmd_athlete_describe(args: argparse.Namespace) -> int:
 
 def cmd_athlete_crowds(args: argparse.Namespace) -> int:
     init_db()
-    from parkrun_agent.crowds import backfill_crowds, format_crowds, runs_with_finishers
+    from parkrun_agent.crowds import format_summary, refresh
     from parkrun_agent.data.event_occurrences import EventOccurrencesRepo
 
     athlete_id = args.id or load_config(args.config).athlete_id
@@ -100,15 +100,13 @@ def cmd_athlete_crowds(args: argparse.Namespace) -> int:
         print("No athlete id (pass --id or set athlete_id in config).", file=sys.stderr)
         return 1
     athlete = AthleteRepository().get(athlete_id)
-    repo = EventOccurrencesRepo()
-    if not args.no_fetch:
-        n = backfill_crowds(athlete, repo, EventsCatalogue(),
-                            max_events=args.max_events, delay=args.delay)
-        if n:
-            print(f"Fetched {n} event histories (cached permanently).\n")
-    pairs = runs_with_finishers(athlete, repo)
-    print(format_crowds(pairs, distinct_events=len(athlete.distinct_event_names),
-                         total_runs=athlete.total_runs))
+    max_new = 0 if args.no_fetch else args.max_new
+    summary = refresh(
+        athlete, EventOccurrencesRepo(), EventsCatalogue(),
+        backfill=args.backfill, max_new=max_new, delay=args.delay,
+    )
+    print()
+    print(format_summary(summary))
     return 0
 
 
@@ -267,11 +265,12 @@ def build_parser() -> argparse.ArgumentParser:
     describe.add_argument("--config", default=DEFAULT_CONFIG_PATH)
     describe.set_defaults(func=cmd_athlete_describe)
 
-    crowds = athlete_sub.add_parser("crowds", help="Most/least crowded parkruns you've run (fetches field sizes).")
+    crowds = athlete_sub.add_parser("crowds", help="Most/least crowded parkruns you've run (compact summary).")
     crowds.add_argument("--id", type=int, default=None, help="Athlete number (default: from config).")
     crowds.add_argument("--config", default=DEFAULT_CONFIG_PATH)
-    crowds.add_argument("--no-fetch", action="store_true", help="Use only cached data; don't fetch.")
-    crowds.add_argument("--max-events", type=int, default=None, help="Cap how many event histories to fetch.")
+    crowds.add_argument("--backfill", action="store_true", help="Fetch ALL your events now (one-time, slower).")
+    crowds.add_argument("--no-fetch", action="store_true", help="Rebuild summary from cache; fetch nothing.")
+    crowds.add_argument("--max-new", type=int, default=5, help="Max new events to fetch per run (incremental).")
     crowds.add_argument("--delay", type=float, default=1.0, help="Seconds between fetches (politeness).")
     crowds.set_defaults(func=cmd_athlete_crowds)
 

@@ -60,6 +60,19 @@ def athlete_summary(athlete: Athlete, catalogue: EventsCatalogue) -> str:
                     far_km, pair = d, (ran_events[i], ran_events[j])
         lines.append(f"- Farthest-apart events: {far_km:.0f} km — {pair[0].name} <-> {pair[1].name}")
 
+    # Cached crowd stats only — never triggers fetches from describe.
+    from parkrun_agent.crowds import runs_with_finishers
+    from parkrun_agent.data.event_occurrences import EventOccurrencesRepo
+
+    crowd_pairs = runs_with_finishers(a, EventOccurrencesRepo())
+    if crowd_pairs:
+        crowd_pairs.sort(key=lambda p: p[1])
+        least_r, least = crowd_pairs[0]
+        most_r, most = crowd_pairs[-1]
+        avg = sum(f for _, f in crowd_pairs) / len(crowd_pairs)
+        lines.append(f"- Field sizes (from {len(crowd_pairs)} runs): avg {avg:.0f}, "
+                     f"busiest {most} ({most_r.event_name}), quietest {least} ({least_r.event_name})")
+
     if a.volunteer_count is not None:
         top = sorted(a.volunteer_roles.items(), key=lambda kv: kv[1], reverse=True)[:3]
         roles = f" (top: {', '.join(f'{r} ×{n}' for r, n in top)})" if top else ""

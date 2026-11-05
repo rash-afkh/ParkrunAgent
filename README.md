@@ -34,8 +34,13 @@ parkrun-agent events near --lat 54.6872 --lon 25.2797 --radius 50
 # Fetch + parse + cache your athlete profile, then print a summary
 parkrun-agent athlete show --id <YOUR_ATHLETE_NUMBER>
 
-# Rich athlete summary (countries, years active, PBs, farthest-apart events, clubs)
+# Rich athlete summary (countries, years active, PBs, farthest-apart, volunteering, clubs)
 parkrun-agent athlete describe
+
+# Most / least crowded parkruns you've run (one fetch per event, cached forever)
+parkrun-agent athlete crowds                 # full backfill (~1 req/event, ~2 min first time)
+parkrun-agent athlete crowds --max-events 15 # fetch a sample first
+parkrun-agent athlete crowds --no-fetch      # cached data only
 
 # Configure home + challenges, then see where you stand
 cp config/preferences.example.yaml config/preferences.yaml   # then edit

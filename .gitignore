@@ -38,6 +38,9 @@ htmlcov/
 .ruff_cache/
 local_files/
 
+# Claude Code local settings
+.claude/
+
 # Editors / OS
 .idea/
 .vscode/

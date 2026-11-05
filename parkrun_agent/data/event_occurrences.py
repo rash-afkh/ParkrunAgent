@@ -12,7 +12,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from parkrun_agent.data import fetchers
 from parkrun_agent.data.cache import get_session
@@ -90,11 +90,20 @@ class EventOccurrencesRepo:
         return len(occurrences)
 
     def mark_unavailable(self, slug: str, now: datetime | None = None) -> None:
-        """Record that an event's history couldn't be fetched (e.g. cancelled /
-        404), so it isn't retried on every weekly update."""
+        """Record that an event's history genuinely doesn't exist (404 / cancelled),
+        so it isn't retried on every weekly update. Do NOT use for transient
+        errors like rate-limiting (405/429) — those should be retried later."""
         with get_session() as s:
             self._mark(s, slug, now or datetime.now(UTC))
             s.commit()
+
+    def clear_markers(self) -> int:
+        """Delete all 'unavailable' sentinel rows so those events are retried.
+        Use to recover from false negatives (e.g. events marked after a 405)."""
+        with get_session() as s:
+            result = s.execute(delete(EventOccurrenceRow).where(EventOccurrenceRow.run_number == 0))
+            s.commit()
+            return result.rowcount or 0
 
     @staticmethod
     def _mark(session, slug: str, now: datetime) -> None:

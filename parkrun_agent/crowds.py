@@ -55,6 +55,16 @@ def build_summary(athlete: Athlete, repo: EventOccurrencesRepo, catalogue: Event
     }
 
 
+# Give up a backfill run after this many throttled requests in a row — parkrun
+# is rate-limiting us; hammering further is rude and won't help.
+_THROTTLE_ABORT = 4
+
+
+def _status_code(exc: Exception) -> int | None:
+    resp = getattr(exc, "response", None)
+    return getattr(resp, "status_code", None)
+
+
 def refresh(
     athlete: Athlete,
     repo: EventOccurrencesRepo,
@@ -63,10 +73,20 @@ def refresh(
     backfill: bool = False,
     max_new: int = 5,
     delay: float = 1.0,
+    retry_unavailable: bool = False,
     log: Callable[[str], None] = print,
 ) -> dict | None:
     """Fetch field sizes for not-yet-seen events (all if backfill, else up to
-    max_new), rebuild the summary, persist it, and return it."""
+    max_new), rebuild the summary, persist it, and return it.
+
+    Only a genuine 404 marks an event as permanently unavailable; transient
+    errors (405/429/5xx/network — usually rate-limiting) are left to retry, and
+    repeated throttling aborts the run so we don't hammer parkrun."""
+    if retry_unavailable:
+        cleared = repo.clear_markers()
+        if cleared:
+            log(f"  cleared {cleared} 'unavailable' marker(s) to retry")
+
     domains = {e.slug: e.country_url for e in catalogue.all_events()}
     needed = [
         slug for slug in sorted({r.event_slug for r in athlete.runs if r.event_slug})
@@ -75,13 +95,26 @@ def refresh(
     if not backfill:
         needed = needed[:max_new]
 
+    throttled_streak = 0
     for i, slug in enumerate(needed, 1):
         log(f"  [{i}/{len(needed)}] fetching field sizes: {slug}")
         try:
             repo.backfill_event(slug, domains.get(slug))
-        except Exception as exc:  # noqa: BLE001 - cancelled/404 events are expected
-            log(f"      unavailable ({exc}); won't retry")
-            repo.mark_unavailable(slug)
+            throttled_streak = 0
+        except Exception as exc:  # noqa: BLE001
+            code = _status_code(exc)
+            if code == 404:
+                log(f"      not found (404) — event cancelled/removed; won't retry: {slug}")
+                repo.mark_unavailable(slug)
+                throttled_streak = 0
+            else:
+                reason = f"HTTP {code}" if code else type(exc).__name__
+                log(f"      temporarily unavailable ({reason}) — will retry later: {slug}")
+                throttled_streak += 1
+                if throttled_streak >= _THROTTLE_ABORT:
+                    log("  Aborting: parkrun is rate-limiting. Try again later with a "
+                        "larger --delay (e.g. --delay 3).")
+                    break
         if delay and i < len(needed):
             time.sleep(delay)
 

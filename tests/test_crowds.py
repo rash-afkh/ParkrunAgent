@@ -76,21 +76,61 @@ def test_refresh_fetches_once_and_builds_summary(db):
     assert fetches["n"] == 1
 
 
-def test_refresh_marks_unavailable_and_doesnt_retry(db):
+def _http_error(code: int):
+    import requests
+
+    resp = requests.Response()
+    resp.status_code = code
+    return requests.exceptions.HTTPError(f"{code} error", response=resp)
+
+
+def test_genuine_404_is_marked_and_not_retried(db):
     cat = _catalogue(db)
     fetches = {"n": 0}
 
     def boom(_slug, _domain=None):
         fetches["n"] += 1
-        raise RuntimeError("404")
+        raise _http_error(404)
 
     repo = EventOccurrencesRepo(fetcher=boom)
     athlete = _athlete(db)
 
-    assert refresh(athlete, repo, cat, delay=0) is None  # no data
+    assert refresh(athlete, repo, cat, delay=0) is None
     assert fetches["n"] == 1
-    refresh(athlete, repo, cat, delay=0)  # marked unavailable -> not retried
+    refresh(athlete, repo, cat, delay=0)  # 404 -> marked unavailable -> not retried
     assert fetches["n"] == 1
+
+
+def test_transient_error_is_not_marked_and_retried(db):
+    cat = _catalogue(db)
+    fetches = {"n": 0}
+
+    def boom(_slug, _domain=None):
+        fetches["n"] += 1
+        raise _http_error(405)  # rate-limited, not gone
+
+    repo = EventOccurrencesRepo(fetcher=boom)
+    athlete = _athlete(db)
+
+    refresh(athlete, repo, cat, delay=0)
+    assert fetches["n"] == 1
+    refresh(athlete, repo, cat, delay=0)  # transient -> NOT marked -> retried
+    assert fetches["n"] == 2
+
+
+def test_retry_unavailable_clears_false_markers(db):
+    cat = _catalogue(db)
+    athlete = _athlete(db)
+
+    def fail_404(_slug, _domain=None):
+        raise _http_error(404)
+
+    # A 404 marks myevent unavailable...
+    refresh(athlete, EventOccurrencesRepo(fetcher=fail_404), cat, delay=0)
+    # ...but now it's actually fetchable; --retry-unavailable clears the marker.
+    good = EventOccurrencesRepo(fetcher=lambda s, d=None: HISTORY_HTML)
+    summary = refresh(athlete, good, cat, delay=0, retry_unavailable=True)
+    assert summary["covered"] == 2
 
 
 def test_no_fetch_builds_from_cache_only(db):

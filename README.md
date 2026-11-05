@@ -51,6 +51,8 @@ parkrun-agent athlete describe        # your parkrun summary
 Your athlete number is on your results page URL:
 `parkrun.com.au/parkrunner/<NUMBER>/` (any country domain works).
 
+📖 **Full command reference and LLM setup: [docs/USAGE.md](docs/USAGE.md).**
+
 ## Commands
 
 ```bash

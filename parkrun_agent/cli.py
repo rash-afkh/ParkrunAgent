@@ -104,6 +104,7 @@ def cmd_athlete_crowds(args: argparse.Namespace) -> int:
     summary = refresh(
         athlete, EventOccurrencesRepo(), EventsCatalogue(),
         backfill=args.backfill, max_new=max_new, delay=args.delay,
+        retry_unavailable=args.retry_unavailable,
     )
     print()
     print(format_summary(summary))
@@ -279,8 +280,10 @@ def build_parser() -> argparse.ArgumentParser:
     crowds.add_argument("--config", default=DEFAULT_CONFIG_PATH)
     crowds.add_argument("--backfill", action="store_true", help="Fetch ALL your events now (one-time, slower).")
     crowds.add_argument("--no-fetch", action="store_true", help="Rebuild summary from cache; fetch nothing.")
+    crowds.add_argument("--retry-unavailable", action="store_true",
+                        help="Retry events previously marked unavailable (e.g. after rate-limiting).")
     crowds.add_argument("--max-new", type=int, default=5, help="Max new events to fetch per run (incremental).")
-    crowds.add_argument("--delay", type=float, default=1.0, help="Seconds between fetches (politeness).")
+    crowds.add_argument("--delay", type=float, default=2.0, help="Seconds between fetches (politeness).")
     crowds.set_defaults(func=cmd_athlete_crowds)
 
     config_cmd = sub.add_parser("config", help="Configuration commands.")

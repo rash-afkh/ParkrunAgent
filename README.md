@@ -1,121 +1,144 @@
-# ParkrunAgent
+# ParkrunAgent 🏃
 
-An agent that reads your public parkrun profile, tracks your progress against a
-set of challenges, and recommends where to run next.
+Find your next parkrun. ParkrunAgent reads your **public parkrun profile**,
+tracks your progress against a set of **challenges** (Alphabeteer, Wilson Index,
+state/country completion, …), and recommends **where to run next** — nearby,
+a bit further for a rare challenge fill, or worth-the-trip destinations. It also
+answers travel questions in plain English ("I'm in Vilnius next week — where
+should I run?") and digs up stats parkrun doesn't show you, like your **most and
+least crowded** parkruns.
 
-See [DESIGN.md](DESIGN.md) for the full architecture. This repository currently
-implements **Milestone 1 — core data + models + cache** (no LangChain yet):
+Everything runs **locally on your machine** against your own profile. The useful
+parts need **no account, no API key, and no cost**.
 
-- Fetch and cache the global parkrun events catalogue (`events.json`).
-- Scrape and parse a single athlete's run history into typed models.
-- Store everything in a local DB that doubles as the cache (read-through + TTL).
-- Geo utilities (haversine + bounding box) and an "events near a point" query.
+## What it can do
 
-## Setup
+- **Challenge tracking** — Alphabeteer (A–Z), Pirates, Compass Club, Wilson Index
+  and the more achievable **Floating Wilson Index**, plus **region-completion**
+  challenges (all of Australia, or per-state). Add your own in YAML.
+- **Recommendations** — scored by how much an event advances your challenges
+  (rare fills rank higher), split into **local / stretch / destination** tiers.
+- **Travel queries** — "which parkrun near \<place\>?" via a natural-language agent.
+- **Athlete summary** — runs, distinct events, countries, years active, PBs,
+  volunteering, farthest-apart events, and **field-size (crowd) stats**.
+
+## Install
+
+Requires Python 3.11+.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+git clone <your-fork-url> parkrun-agent && cd parkrun-agent
+python -m venv .venv && source .venv/bin/activate
+
+pip install -e .            # core features (no LLM) — recommendations, challenges, stats
+pip install -e ".[agent]"   # + the natural-language `ask` agent (optional)
 ```
 
-## Usage
+## Quickstart
 
 ```bash
-# Create the local SQLite database (the cache)
-parkrun-agent init-db
+parkrun-agent init-db                 # create the local cache
+parkrun-agent events refresh          # fetch the global events catalogue (cached 7 days)
 
-# Refresh the events catalogue (cached for 7 days)
-parkrun-agent events refresh
+cp config/preferences.example.yaml config/preferences.yaml
+# edit it: set athlete_id to your parkrun number and your home event/coords
 
-# List events within 50 km of a point (e.g. Vilnius)
-parkrun-agent events near --lat 54.6872 --lon 25.2797 --radius 50
-
-# Fetch + parse + cache your athlete profile, then print a summary
-parkrun-agent athlete show --id <YOUR_ATHLETE_NUMBER>
-
-# Rich athlete summary (countries, years active, PBs, farthest-apart, volunteering, clubs)
-parkrun-agent athlete describe
-
-# Most / least crowded parkruns you've run (compact per-athlete summary)
-parkrun-agent athlete crowds                 # incremental: fetch up to 5 new events, update summary
-parkrun-agent athlete crowds --backfill      # one-time: fetch ALL your events (slower)
-parkrun-agent athlete crowds --no-fetch      # rebuild summary from cache only
-
-# Configure home + challenges, then see where you stand
-cp config/preferences.example.yaml config/preferences.yaml   # then edit
-parkrun-agent config show            # resolved home + enabled challenges
-parkrun-agent challenges show        # your progress per challenge
-
-# Where should I run next? (local / stretch / destination tiers from home)
-parkrun-agent recommend
-parkrun-agent recommend --local-only   # hide the global "destination" tier
-
-# "I'm travelling to <place> — which parkrun there?" (manual coords)
-parkrun-agent recommend --lat 54.6872 --lon 25.2797 --stretch 150
-
-# Natural-language agent (needs an Anthropic API key — see below)
-export ANTHROPIC_API_KEY=sk-ant-...
-parkrun-agent ask "I'm travelling to Vilnius next week — where should I run?"
-parkrun-agent ask "How am I doing on my challenges?"
+parkrun-agent challenges show         # how you're doing on each challenge
+parkrun-agent recommend               # where to run next
+parkrun-agent athlete describe        # your parkrun summary
 ```
 
-## The agent (LangChain / LangGraph)
+Your athlete number is on your results page URL:
+`parkrun.com.au/parkrunner/<NUMBER>/` (any country domain works).
 
-Milestone 4 (DESIGN.md §7) wraps the deterministic core in LangChain **tools**
-(`profile_summary`, `challenge_progress`, `recommend_from_home`,
-`recommend_near`) and a **LangGraph ReAct agent** that calls them. A **geocoder**
-(OpenStreetMap Nominatim, cached) turns free-text places like "Vilnius" into
-coordinates, so travel questions work from plain English. The LLM only picks
-tools and writes prose — all facts come from the deterministic core.
+## Commands
 
-Requires Anthropic credentials (`ANTHROPIC_API_KEY`). The model defaults to
-`claude-opus-5-5`; override with `PARKRUN_LLM_MODEL` (e.g.
-`claude-haiku-5-5` is far cheaper for experimenting) or `--model`.
+```bash
+# Profile & stats
+parkrun-agent athlete show --id <N>        # fetch + cache + summarise
+parkrun-agent athlete describe             # rich summary (stats, farthest-apart, clubs, volunteering)
+parkrun-agent athlete crowds               # most/least crowded parkruns you've run
+parkrun-agent athlete crowds --backfill    #   one-time: fetch field sizes for ALL your events
 
-## Recommendation engine
+# Challenges & recommendations
+parkrun-agent challenges show
+parkrun-agent recommend                    # from home: local / stretch / destination tiers
+parkrun-agent recommend --local-only       # hide the global destination tier
+parkrun-agent recommend --lat 54.69 --lon 25.28   # near a travel location (manual coords)
 
-Milestone 3 (DESIGN.md §6): scores each candidate event by scarcity-weighted
-challenge contribution, novelty and distance, then splits results into **local**
-(≤50 km), **stretch** (further but fills a rare slot) and **destination**
-(globally high-value, e.g. the Wilson blocker) tiers. Adult (5k) events only;
-junior parkruns are excluded. Still no LLM — this is pure, testable Python.
+# Natural language (needs an LLM backend — see below)
+parkrun-agent ask "I'm travelling to Vilnius next week, where should I run?"
+parkrun-agent ask "how am I doing on my challenges?"
+```
+
+## The `ask` agent (optional) — free local **or** paid
+
+The agent only *chooses tools and writes prose*; every fact comes from the
+deterministic core. Pick a backend:
+
+**Free & local — Ollama (no key, no cost, nothing leaves your machine):**
+```bash
+# install Ollama from ollama.com, then:
+ollama pull llama3.1
+export PARKRUN_LLM_PROVIDER=ollama
+parkrun-agent ask "which parkrun near Edinburgh helps my challenges?"
+```
+Use a model that supports tool-calling (llama3.1 / llama3.2 / qwen2.5 are good).
+
+**Anthropic Claude (paid, bring your own key):**
+```bash
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env     # auto-loaded; .env is gitignored
+export PARKRUN_LLM_MODEL=claude-haiku-5-5       # ~$0.0007/query; cheap and plenty
+parkrun-agent ask "..."
+```
+
+Configure with `PARKRUN_LLM_PROVIDER` (`ollama`/`anthropic`), `PARKRUN_LLM_MODEL`,
+or `--provider` / `--model`.
 
 ## Configuration
 
-`config/preferences.yaml` (gitignored; copy from `preferences.example.yaml`)
-holds your athlete number, home location (either a parkrun **event name/slug**
-or explicit **lat/lon**), search radii, and which challenges are enabled —
-including custom ones defined entirely in YAML. See the example file.
+`config/preferences.yaml` (copy from the example; it's gitignored so your details
+stay private):
 
-## Challenges
-
-Built-in: `alphabeteer`, `pirates`, `compass` (token-collection); `wilson`
-(prefix from event #1) and `floating_wilson` (longest consecutive run anywhere —
-far more achievable); and region-completion challenges `australia` + per-state
-`au_wa`/`au_nsw`/`au_vic`/`au_qld`/`au_sa`/`au_tas`/`au_act`/`au_nt` (run every
-event in that region). Enable the ones you want in `preferences.yaml`, or define
-your own in YAML. See [DESIGN.md](DESIGN.md) §5.
-
-> Note: Australian state assignment uses approximate straight-line borders; the
-> WA (129°E) and SA/NT (26°S) borders are exact, but events near the irregular
-> NSW/VIC and QLD/NSW borders may be misclassified.
-
-The database location defaults to `./local_data/parkrun_agent.db` and can be
-overridden with the `PARKRUN_DB_URL` environment variable (any SQLAlchemy URL,
-e.g. a Postgres DSN).
-
-## Running tests
-
-```bash
-pytest
+```yaml
+athlete_id: 1234567
+home:
+  event: "Bushy parkrun"     # a name/slug, OR explicit lat/lon
+preferences:
+  local_radius_km: 50
+  stretch_radius_km: 200
+challenges:
+  enabled: [alphabeteer, pirates, compass, wilson, floating_wilson, australia, au_wa]
 ```
 
-Tests use offline fixtures — they never hit the network.
+Challenge keys: `alphabeteer`, `pirates`, `compass`, `wilson`, `floating_wilson`,
+and region keys `australia` + `au_wa`/`au_nsw`/`au_vic`/`au_qld`/`au_sa`/`au_tas`/
+`au_act`/`au_nt`. Define your own token-collection challenges in YAML too — see the
+example file. (Australian state assignment uses approximate straight-line borders.)
 
-## A note on data sources
+## How it works
 
-parkrun has no public API and its terms discourage automated scraping; result
-pages sit behind bot protection. This tool is for **personal use**: it caches
-aggressively (events weekly, athlete history until the next Saturday) and makes
-at most one polite request at a time. See [DESIGN.md](DESIGN.md) §3.
+A deterministic Python core (challenge logic, geo scoring, stats) with an optional
+LangChain/LangGraph agent layered on top. The database doubles as a cache
+(read-through with TTLs). See **[DESIGN.md](DESIGN.md)** for the full architecture.
+
+## Please use it responsibly
+
+parkrun has no public API, and its terms discourage automated scraping. This tool
+is for **personal use**: it reads **your own** profile from **your own** machine,
+caches aggressively (events weekly, your history until the next Saturday, event
+field-sizes forever), and makes at most one polite request at a time. Please don't
+turn it into a service that scrapes many athletes from one server — that's what
+gets tools blocked. The public `events.json` catalogue is fine to use.
+
+## Development
+
+```bash
+pip install -e ".[agent,dev]"
+pytest -q        # offline tests (no network, no LLM)
+ruff check .
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -5,9 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "parkrun-agent"
 version = "0.1.0"
-description = "Agent that recommends your next parkrun based on your profile and challenges"
+description = "Find your next parkrun: track challenges and get recommendations from your public parkrun profile"
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Rash Afkhami" }]
+keywords = ["parkrun", "running", "recommendations", "challenges", "langchain"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Utilities",
+]
+# Core (deterministic) features need no LLM and stay dependency-light.
 dependencies = [
     "pydantic>=2.6",
     "SQLAlchemy>=2.0",
@@ -15,14 +25,18 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "lxml>=5.1",
     "PyYAML>=6.0",
-    # LangChain (Milestone 4): agent + Claude integration
-    "langchain-core>=0.3",
-    "langchain-anthropic>=0.3",
-    "langgraph>=0.2",
     "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
+# Natural-language agent (the `ask` command). Includes both LLM backends:
+# Anthropic (paid, BYO key) and Ollama (free, local models).
+agent = [
+    "langchain-core>=0.3",
+    "langgraph>=0.2",
+    "langchain-anthropic>=0.3",
+    "langchain-ollama>=0.2",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
@@ -41,3 +55,9 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# pyflakes (F), import sorting (I), and real pycodestyle errors. Line length is
+# left to judgement; broad-except is intentional in the fail-soft paths.
+select = ["E", "F", "I"]
+ignore = ["E501"]

@@ -6,8 +6,8 @@ reads come from the DB.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -70,7 +70,7 @@ class EventsCatalogue:
 
     def refresh(self, *, force: bool = False, now: datetime | None = None) -> int:
         """Refresh the catalogue if stale. Returns the number of events stored."""
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         with get_session() as s:
             meta = s.get(CatalogueMetaRow, 1) or CatalogueMetaRow(id=1)
             if not force and is_fresh(meta.last_refreshed_at, EVENTS_TTL, now):

@@ -1,9 +1,9 @@
 import json
 from datetime import date
 
+from parkrun_agent.core.models import Athlete, Run
 from parkrun_agent.data.athlete_repo import parse_clubs, parse_volunteer_summary
 from parkrun_agent.data.events_catalogue import EventsCatalogue
-from parkrun_agent.core.models import Athlete, Run
 from parkrun_agent.describe import athlete_summary
 from tests.conftest import FIXTURES
 

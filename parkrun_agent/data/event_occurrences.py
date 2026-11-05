@@ -8,8 +8,8 @@ permanently. One fetch per distinct event the athlete has run — not per run.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
 from sqlalchemy import select
@@ -73,7 +73,7 @@ class EventOccurrencesRepo:
     def backfill_event(self, slug: str, domain: str | None = None, now: datetime | None = None) -> int:
         """Fetch one event's history (from its home-country domain) and cache all
         its occurrences. Event pages are domain-specific, unlike athlete pages."""
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         domain = domain or fetchers.PARKRUN_DEFAULT_DOMAIN
         occurrences = parse_event_history(self._fetch(slug, domain))
         with get_session() as s:
@@ -93,7 +93,7 @@ class EventOccurrencesRepo:
         """Record that an event's history couldn't be fetched (e.g. cancelled /
         404), so it isn't retried on every weekly update."""
         with get_session() as s:
-            self._mark(s, slug, now or datetime.now(timezone.utc))
+            self._mark(s, slug, now or datetime.now(UTC))
             s.commit()
 
     @staticmethod

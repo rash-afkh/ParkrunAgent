@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from parkrun_agent.core.models import Athlete, Run
 from parkrun_agent.crowds import format_summary, refresh
@@ -44,7 +44,7 @@ def _athlete(db):
             run_number=3, time_seconds=1500),   # 120 finishers
     ]
     with get_session() as s:
-        s.add(AthleteRow(id=3244769, name="Me", fetched_at=datetime.now(timezone.utc)))
+        s.add(AthleteRow(id=3244769, name="Me", fetched_at=datetime.now(UTC)))
         s.commit()
     return Athlete(id=3244769, name="Me", runs=runs)
 

@@ -11,8 +11,8 @@ coverage.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from parkrun_agent.core.models import Athlete
 from parkrun_agent.data.athlete_repo import set_crowd_summary
@@ -51,7 +51,7 @@ def build_summary(athlete: Athlete, repo: EventOccurrencesRepo, catalogue: Event
         "avg": round(sum(f for _, f in pairs) / len(pairs)),
         "most": entry(most_r, most),
         "least": entry(least_r, least),
-        "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "updated": datetime.now(UTC).isoformat(timespec="seconds"),
     }
 
 

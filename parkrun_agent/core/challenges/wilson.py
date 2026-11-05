@@ -44,12 +44,12 @@ def _completed_ids(athlete: Athlete, slug2id: dict[str, int], name2id: dict[str,
     return ids
 
 
-def wilson_from_events(events: list[Event], next_preview: int = 5) -> "WilsonIndexChallenge":
+def wilson_from_events(events: list[Event], next_preview: int = 5) -> WilsonIndexChallenge:
     refs = [EventRef(id=e.id, slug=e.slug, name=e.name) for e in events]
     return WilsonIndexChallenge(refs, next_preview=next_preview)
 
 
-def floating_wilson_from_events(events: list[Event]) -> "FloatingWilsonIndexChallenge":
+def floating_wilson_from_events(events: list[Event]) -> FloatingWilsonIndexChallenge:
     refs = [EventRef(id=e.id, slug=e.slug, name=e.name) for e in events]
     return FloatingWilsonIndexChallenge(refs)
 

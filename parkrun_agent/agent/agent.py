@@ -15,7 +15,8 @@ import os
 from parkrun_agent.agent.context import AgentContext, build_context
 from parkrun_agent.agent.tools import build_tools
 
-DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5"
+DEFAULT_OLLAMA_MODEL = "llama3.1"
 
 SYSTEM_PROMPT = (
     "You are ParkrunAgent, a friendly assistant that helps {name} (parkrun athlete "
@@ -31,25 +32,40 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_model(model: str | None = None):
-    from langchain_anthropic import ChatAnthropic
+def build_model(model: str | None = None, provider: str | None = None):
+    """Build the chat model. Provider is 'anthropic' (paid, BYO key) or 'ollama'
+    (free local models). Configure via PARKRUN_LLM_PROVIDER / PARKRUN_LLM_MODEL,
+    or the arguments here."""
+    provider = (provider or os.environ.get("PARKRUN_LLM_PROVIDER", "anthropic")).lower()
+    model = model or os.environ.get("PARKRUN_LLM_MODEL")
 
-    return ChatAnthropic(
-        model=model or os.environ.get("PARKRUN_LLM_MODEL", DEFAULT_MODEL),
-        max_tokens=2048,
-    )
+    if provider == "ollama":
+        from langchain_ollama import ChatOllama
+
+        kwargs: dict = {"model": model or DEFAULT_OLLAMA_MODEL}
+        host = os.environ.get("OLLAMA_HOST")
+        if host:
+            kwargs["base_url"] = host
+        return ChatOllama(**kwargs)
+
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        return ChatAnthropic(model=model or DEFAULT_ANTHROPIC_MODEL, max_tokens=2048)
+
+    raise ValueError(f"Unknown LLM provider {provider!r} (use 'anthropic' or 'ollama').")
 
 
-def build_agent(config_path: str, model: str | None = None):
-    """Return (compiled_agent, context). Requires Anthropic credentials in the
-    environment (ANTHROPIC_API_KEY) at invoke time."""
+def build_agent(config_path: str, model: str | None = None, provider: str | None = None):
+    """Return (compiled_agent, context). Needs an LLM backend at invoke time:
+    an Anthropic key (ANTHROPIC_API_KEY) or a running local Ollama."""
     from langgraph.prebuilt import create_react_agent
 
     ctx: AgentContext = build_context(config_path)
     prompt = SYSTEM_PROMPT.format(
         name=ctx.athlete.name or "the athlete", athlete_id=ctx.athlete.id
     )
-    agent = create_react_agent(build_model(model), build_tools(ctx), prompt=prompt)
+    agent = create_react_agent(build_model(model, provider), build_tools(ctx), prompt=prompt)
     return agent, ctx
 
 
@@ -69,7 +85,7 @@ def _message_text(message) -> str:
     return "\n".join(p for p in parts if p).strip()
 
 
-def ask(config_path: str, question: str, model: str | None = None) -> str:
-    agent, _ctx = build_agent(config_path, model)
+def ask(config_path: str, question: str, model: str | None = None, provider: str | None = None) -> str:
+    agent, _ctx = build_agent(config_path, model, provider)
     result = agent.invoke({"messages": [{"role": "user", "content": question}]})
     return _message_text(result["messages"][-1])

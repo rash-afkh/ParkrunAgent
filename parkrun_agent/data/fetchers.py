@@ -40,7 +40,7 @@ def _get(url: str, *, params: dict | None = None, headers: dict | None = None,
             if resp.status_code in (429, 500, 502, 503, 504):
                 resp.raise_for_status()
             return resp
-        except requests.RequestException as exc:  # noqa: PERF203
+        except requests.RequestException as exc:
             last_exc = exc
             if attempt < retries - 1:
                 time.sleep(backoff * (attempt + 1))

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import Callable
+from collections.abc import Callable
 
 from parkrun_agent.core.models import Athlete, ChallengeProgress, Event
 

@@ -12,7 +12,7 @@ stale, which is all the "caching policy" this app needs:
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, select, text
@@ -90,12 +90,12 @@ def init_db(url: str | None = None) -> Engine:
 
 
 def _now(now: datetime | None = None) -> datetime:
-    return now or datetime.now(timezone.utc)
+    return now or datetime.now(UTC)
 
 
 def _as_aware(dt: datetime) -> datetime:
     """SQLite drops tzinfo on round-trip; treat naive timestamps as UTC."""
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def is_fresh(fetched_at: datetime | None, ttl: timedelta, now: datetime | None = None) -> bool:

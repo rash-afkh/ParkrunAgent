@@ -8,11 +8,11 @@ never needs the network.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, date, datetime
 
 from bs4 import BeautifulSoup
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 
 from parkrun_agent.core.models import Athlete, Run
 from parkrun_agent.data import fetchers
@@ -134,7 +134,7 @@ def parse_athlete_html(html: str, athlete_id: int) -> Athlete:
         name = re.sub(r"\s*\(A\d+\)\s*$", "", heading.get_text(strip=True)).strip() or None
 
     home_event = None
-    m = re.search(r"home parkrun is\s+(.+?)[.<\n]", soup.get_text(" ", strip=True), re.I)
+    m = re.search(r"home parkrun is\s+(.+?)[.<\n]", soup.get_text(" ", strip=True), re.IGNORECASE)
     if m:
         home_event = m.group(1).strip()
 
@@ -228,7 +228,7 @@ class AthleteRepository:
         self._fetch_profile = profile_fetcher or fetchers.fetch_athlete_profile_html
 
     def get(self, athlete_id: int, *, force: bool = False, now: datetime | None = None) -> Athlete:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         with get_session() as s:
             row = s.get(AthleteRow, athlete_id)
             if row is not None and not force and is_athlete_fresh(row.fetched_at, now):

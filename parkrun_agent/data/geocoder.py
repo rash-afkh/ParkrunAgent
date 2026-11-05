@@ -7,8 +7,8 @@ a cached hit is served forever.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from parkrun_agent.core.geo import GeoPoint
 from parkrun_agent.data import fetchers
@@ -43,7 +43,7 @@ class Geocoder:
                     lon=result["lon"],
                     display_name=result.get("display_name"),
                     source="nominatim",
-                    fetched_at=datetime.now(timezone.utc),
+                    fetched_at=datetime.now(UTC),
                 )
             )
             s.commit()

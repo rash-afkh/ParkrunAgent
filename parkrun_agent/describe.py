@@ -63,10 +63,11 @@ def athlete_summary(athlete: Athlete, catalogue: EventsCatalogue) -> str:
     # Stored crowd summary only — never triggers fetches from describe.
     cs = a.crowd_summary
     if cs:
-        m, l = cs["most"], cs["least"]
+        most, least = cs["most"], cs["least"]
         lines.append(
             f"- Field sizes (from {cs['covered']}/{cs['total_runs']} runs): avg {cs['avg']}, "
-            f"busiest {m['finishers']} ({m['event']}), quietest {l['finishers']} ({l['event']})"
+            f"busiest {most['finishers']} ({most['event']}), "
+            f"quietest {least['finishers']} ({least['event']})"
         )
 
     if a.volunteer_count is not None:
